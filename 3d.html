@@ -113,6 +113,16 @@ input.name { font-size: 28px; font-family: inherit; padding: 10px 16px; border-r
 .helped > div { background: #f3efff; border-radius: 16px; padding: 8px 12px; font-size: 18px; } .helped .e { font-size: 34px; }
 .extras { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #fff8e1; border-radius: 16px; padding: 10px; font-size: 19px; margin: 8px 0; }
 @media (max-width: 760px) { .dashBtn { width: 70px; height: 70px; font-size: 26px; } #arrowBox { width: 70px; height: 70px; } .counters { font-size: 16px; gap: 8px; } }
+#promptGo { margin-left: 6px; }
+@media (max-width: 480px) { #prompt { font-size: 17px; max-width: 92vw; } .counters { font-size: 13px; gap: 6px; } #drName { display: none; } }
+#prompt { pointer-events: none; } #prompt button { pointer-events: auto; }
+@media (max-width: 480px) { #prompt { font-size: 15px; line-height: 1.25; padding: 6px 10px; top: 58px; } #prompt .read-btn { width: 34px; height: 34px; font-size: 16px; } }
+@media (max-width: 480px) {
+  #hud { gap: 5px; left: 6px; right: 6px; } .round { width: 38px; height: 38px; font-size: 18px; } .pill { padding: 4px 8px; font-size: 15px; }
+  #prompt { left: 8px; right: 8px; transform: none; width: auto; max-width: none; top: 56px; display: flex; align-items: center; gap: 6px; }
+  #promptText { flex: 1; }
+}
+@media (max-width: 480px) { #prompt { left: 50%; right: auto; width: calc(100vw - 16px); box-sizing: border-box; } }
 </style>
 </head>
 <body>
@@ -125,7 +135,7 @@ input.name { font-size: 28px; font-family: inherit; padding: 10px 16px; border-r
   <button id="musicBtn" class="round off" aria-label="Background music">🎵</button>
   <button id="muteBtn" class="round" aria-label="Sound on or off">🔊</button>
 </div>
-<div id="prompt" hidden><span id="promptText"></span><button class="read-btn" id="promptRead" aria-label="Read to me">🔈</button></div>
+<div id="prompt" hidden><span id="promptText"></span><button class="read-btn" id="promptRead" aria-label="Read to me">🔈</button><button class="read-btn" id="promptGo" aria-label="Take me there">🧭</button></div>
 <div id="clues" hidden><div class="clues-title">📋 Clues</div><div id="clueList"></div></div>
 <div id="toolbar" hidden></div>
 <div id="dash" hidden>
@@ -604,9 +614,15 @@ CD.registerCareer({
   /* ---------------- collision + zones ---------------- */
   const colliders = [];   // axis-aligned boxes {x1,x2,z1,z2}
   const solid = (cx, cz, w, d) => { const b = { x1: cx - w / 2, x2: cx + w / 2, z1: cz - d / 2, z2: cz + d / 2 }; colliders.push(b); return b; };
-  function collide(x, z, r = 0.32) {
+  // push a circle out of every box. If the centre ended up INSIDE a box (e.g. after a teleport), pop it out of the nearest face.
+  function collide(x, z, r = 0.25) {
     for (const b of colliders) {
       if (b.off || x < b.x1 - r - 1 || x > b.x2 + r + 1 || z < b.z1 - r - 1 || z > b.z2 + r + 1) continue;
+      if (x > b.x1 && x < b.x2 && z > b.z1 && z < b.z2) {
+        const d = [x - b.x1, b.x2 - x, z - b.z1, b.z2 - z], m = Math.min(...d), i = d.indexOf(m);
+        if (i === 0) x = b.x1 - r - 0.01; else if (i === 1) x = b.x2 + r + 0.01; else if (i === 2) z = b.z1 - r - 0.01; else z = b.z2 + r + 0.01;
+        continue;
+      }
       const cx = Math.max(b.x1, Math.min(x, b.x2)), cz = Math.max(b.z1, Math.min(z, b.z2));
       const dx = x - cx, dz = z - cz, d2 = dx * dx + dz * dz;
       if (d2 < r * r) { if (d2 > 1e-8) { const d = Math.sqrt(d2), push = (r - d) / d; x += dx * push; z += dz * push; } else { x += r; } }
@@ -615,7 +631,7 @@ CD.registerCareer({
   }
   // indoor "rooms" (for tap-to-walk routing through doorways). Everything else is "out".
   const ROOMS = {
-    bed: [[-6, -1, -5, 0]], kit: [[1, 6, -5, 0]], liv: [[-6, 6, 0, 5], [-1, 1, -5, 0]],
+    bed: [[-8, -1, -7, 0]], kit: [[1, 8, -7, 0]], liv: [[-8, 8, 0, 5], [-1, 1, -7, 0]],
     cwait: [[0, 10, 80, 96]], cexam: [[10, 20, 80, 96]],
   };
   const DOORS = [ // [roomA, roomB, pointInA, pointInB]
@@ -958,55 +974,56 @@ CD.registerCareer({
     scene.add(pI, rI);
   }
 
-  /* ---------- HOUSE (x -6..6, z -5..5) ---------- */
+  /* ---------- HOUSE (x -8..8, z -7..5): roomy rooms, 2 m doorways, furniture against the walls ---------- */
   const houseC = "#fff4e0";
-  wallLine(-6, -5, 6, -5, houseC); wallLine(-6, -5, -6, 5, houseC); wallLine(6, -5, 6, 5, houseC);
-  wallLine(-6, 5, 6, 5, houseC, [[0, 1.4]]);
-  wallLine(-6, 0, -1, 0, "#e8dcff", [[-3.5, 1.4]]); wallLine(1, 0, 6, 0, "#d8f3e6", [[3.5, 1.4]]);
-  wallLine(-1, -5, -1, 0, "#e8dcff"); wallLine(1, -5, 1, 0, "#d8f3e6");
-  roof(0, 0, 13.4, 11.4, 2.4, "#e5674e");
-  plane(Z.house, mat("#fffaf2"), [0, H - 0.01, 0], 12, 10, Math.PI / 2);
-  plane(Z.house, new THREE.MeshLambertMaterial({ map: floorTex("#d9c8ff", "#cfbcff", 4, 4) }), [-3.5, 0.03, -2.5], 5, 5);
-  plane(Z.house, new THREE.MeshLambertMaterial({ map: floorTex("#ffffff", "#d6f0ff", 5, 5) }), [3.5, 0.03, -2.5], 5, 5);
-  plane(Z.house, new THREE.MeshLambertMaterial({ map: floorTex("#f0cf98", "#e8c184", 6, 3) }), [0, 0.03, 2.5], 12, 5);
-  plane(Z.house, mat("#f0cf98"), [0, 0.03, -2.5], 2, 5);
+  wallLine(-8, -7, 8, -7, houseC); wallLine(-8, -7, -8, 5, houseC); wallLine(8, -7, 8, 5, houseC);
+  wallLine(-8, 5, 8, 5, houseC, [[0, 2.0]]);
+  wallLine(-8, 0, -1, 0, "#e8dcff", [[-3.5, 2.0]]); wallLine(1, 0, 8, 0, "#d8f3e6", [[3.5, 2.0]]);
+  wallLine(-1, -7, -1, 0, "#e8dcff"); wallLine(1, -7, 1, 0, "#d8f3e6");
+  roof(0, -1, 17.4, 12.4, 2.6, "#e5674e");
+  plane(Z.house, mat("#fffaf2"), [0, H - 0.01, -1], 16, 12, Math.PI / 2);
+  plane(Z.house, new THREE.MeshLambertMaterial({ map: floorTex("#d9c8ff", "#cfbcff", 5, 5) }), [-4.5, 0.03, -3.5], 7, 7);
+  plane(Z.house, new THREE.MeshLambertMaterial({ map: floorTex("#ffffff", "#d6f0ff", 6, 6) }), [4.5, 0.03, -3.5], 7, 7);
+  plane(Z.house, new THREE.MeshLambertMaterial({ map: floorTex("#f0cf98", "#e8c184", 8, 3) }), [0, 0.03, 2.5], 16, 5);
+  plane(Z.house, mat("#f0cf98"), [0, 0.03, -3.5], 2, 7);
+  // big doormats so the doorways are easy to spot
+  plane(Z.house, mat("#ffd23c"), [-3.5, 0.035, 0], 1.8, 0.9); plane(Z.house, mat("#ffd23c"), [3.5, 0.035, 0], 1.8, 0.9);
   // front door (swings open when you come near)
-  const frontDoor = group(null, [-0.7, 0, 5]); box(frontDoor, "#4fa8ff", [0.7, 1.1, 0], [1.4, 2.2, 0.08]); ball(frontDoor, "#ffd54f", [1.2, 1.1, 0.07], 0.06);
-  // bedroom
-  const bed = group(Z.house, [-4.6, 0, -3.6]);
+  const frontDoor = group(null, [-1.0, 0, 5]); box(frontDoor, "#4fa8ff", [1.0, 1.1, 0], [2.0, 2.2, 0.08]); ball(frontDoor, "#ffd54f", [1.7, 1.1, 0.07], 0.06);
+  // bedroom: bed + nightstand in the back-left corner, closet on the side wall, window on the back wall
+  const bed = group(Z.house, [-6.9, 0, -5.6]);
   box(bed, "#ffffff", [0, 0.25, 0], [1.5, 0.5, 2.3]); box(bed, "#9b7bff", [0, 0.55, 0.25], [1.55, 0.12, 1.7]); box(bed, "#ffffff", [0, 0.6, -0.85], [1.2, 0.18, 0.45]);
-  box(bed, "#ff9fc4", [0, 0.75, -1.15], [1.5, 1.0, 0.12]); solid(-4.6, -3.6, 1.5, 2.3);
-  const stand = group(Z.house, [-3.3, 0, -4.4]); box(stand, "#ffd1e4", [0, 0.3, 0], [0.6, 0.6, 0.5]); solid(-3.3, -4.4, 0.6, 0.5);
+  box(bed, "#ff9fc4", [0, 0.75, -1.15], [1.5, 1.0, 0.12]); solid(-6.9, -5.6, 1.5, 2.3);
+  const stand = group(Z.house, [-5.6, 0, -6.6]); box(stand, "#ffd1e4", [0, 0.3, 0], [0.6, 0.6, 0.5]); solid(-5.6, -6.6, 0.6, 0.5);
   const alarm = group(stand, [0, 0.74, 0]);
   cyl(alarm, "#ff5a5a", [0, 0, 0], 0.13, 0.08, [Math.PI / 2, 0, 0]); cyl(alarm, "#ffffff", [0, 0, 0.042], 0.11, 0.01, [Math.PI / 2, 0, 0]);
   for (const s of [-1, 1]) ball(alarm, "#ffd54f", [s * 0.08, 0.13, 0], 0.045);
   box(alarm, "#333", [0, 0.03, 0.05], [0.01, 0.07, 0.005]); box(alarm, "#333", [0.025, 0, 0.05], [0.05, 0.01, 0.005]);
   hitbox(alarm, [0, 0, 0], [0.5, 0.5, 0.5]); alarm.userData.interact = "alarm"; alarm.rotation.y = 0.5;
-  // window + curtains (back wall)
-  box(Z.house, "#bfe8ff", [-3.5, 1.6, -4.89], [1.8, 1.2, 0.02]); box(Z.house, "#fff", [-3.5, 1.6, -4.88], [0.06, 1.2, 0.03]);
-  const curtains = [-1, 1].map((s) => box(Z.house, "#ff7eb6", [-3.5 + s * 0.45, 1.6, -4.82], [0.92, 1.45, 0.06]));
-  const curtainHit = hitbox(Z.house, [-3.5, 1.6, -4.7], [2.2, 1.6, 0.4]); curtainHit.userData.interact = "curtains";
-  const sunbeam = mesh(boxG(), new THREE.MeshBasicMaterial({ color: "#fff3a0", transparent: true, opacity: 0.25, depthWrite: false }), Z.house, [-3.5, 0.9, -3.7], [1.6, 0.02, 2.2]); sunbeam.visible = false;
-  // closet
-  const closet = group(Z.house, [-5.6, 0, -1.4]); box(closet, "#ffbf3c", [0, 1.1, 0], [0.7, 2.2, 1.4]); box(closet, "#fff", [0.36, 1.1, 0], [0.02, 1.9, 0.02]);
+  const WINX = -3.9;
+  box(Z.house, "#bfe8ff", [WINX, 1.6, -6.89], [1.8, 1.2, 0.02]); box(Z.house, "#fff", [WINX, 1.6, -6.88], [0.06, 1.2, 0.03]);
+  const curtains = [-1, 1].map((s) => box(Z.house, "#ff7eb6", [WINX + s * 0.45, 1.6, -6.82], [0.92, 1.45, 0.06]));
+  const curtainHit = hitbox(Z.house, [WINX, 1.6, -6.7], [2.2, 1.6, 0.4]); curtainHit.userData.interact = "curtains";
+  const sunbeam = mesh(boxG(), new THREE.MeshBasicMaterial({ color: "#fff3a0", transparent: true, opacity: 0.25, depthWrite: false }), Z.house, [WINX, 0.05, -5.6], [1.6, 0.02, 2.2]); sunbeam.visible = false;
+  const closet = group(Z.house, [-1.45, 0, -4.8], Math.PI); box(closet, "#ffbf3c", [0, 1.1, 0], [0.7, 2.2, 1.4]); box(closet, "#fff", [0.36, 1.1, 0], [0.02, 1.9, 0.02]);
   for (const s of [-1, 1]) ball(closet, "#fff", [0.37, 1.1, s * 0.12], 0.04);
-  hitbox(closet, [0.2, 1.1, 0], [0.9, 2.2, 1.5]); closet.userData.interact = "closet"; solid(-5.6, -1.4, 0.7, 1.4);
-  textPlane(Z.house, ["I ❤ Animals"], [-1.12, 1.7, -2.6], 1.2, { w: 512, h: 200, bg: "#fff", fg: "#ff5a8a", size: 60, border: "#ffd1e4" }, -Math.PI / 2);
-  cyl(Z.house, "#b9a6ff", [-3.5, 0.04, -2.0], 1.0, 0.02);
-  // kitchen
-  box(Z.house, "#ffffff", [3.3, 0.45, -4.6], [4, 0.9, 0.7]); box(Z.house, "#4fa8ff", [3.3, 0.93, -4.6], [4.05, 0.06, 0.75]); solid(3.3, -4.6, 4, 0.7);
-  box(Z.house, "#333", [2.4, 0.97, -4.6], [0.7, 0.02, 0.5]); box(Z.house, "#e0e6ee", [5.5, 1.0, -3.6], [0.8, 2.0, 0.8]); solid(5.5, -3.6, 0.8, 0.8);
-  box(Z.house, "#bfe8ff", [5.89, 1.6, -1.5], [0.02, 1.0, 1.4]);
-  const table = group(Z.house, [3.5, 0, -2.0]);
-  cyl(table, "#ffd54f", [0, 0.75, 0], 0.75, 0.06); cyl(table, "#e0a85c", [0, 0.37, 0], 0.08, 0.74); solid(3.5, -2.0, 1.3, 1.3);
+  hitbox(closet, [0.2, 1.1, 0], [0.9, 2.2, 1.5]); closet.userData.interact = "closet"; solid(-1.45, -4.8, 0.7, 1.4);
+  textPlane(Z.house, ["I ❤ Animals"], [-1.12, 1.7, -2.4], 1.2, { w: 512, h: 200, bg: "#fff", fg: "#ff5a8a", size: 60, border: "#ffd1e4" }, -Math.PI / 2);
+  cyl(Z.house, "#b9a6ff", [-4.2, 0.04, -3.2], 1.2, 0.02);
+  // kitchen: counters on the back wall, fridge in the corner, table in the middle with lots of space around it
+  box(Z.house, "#ffffff", [4, 0.45, -6.6], [4, 0.9, 0.7]); box(Z.house, "#4fa8ff", [4, 0.93, -6.6], [4.05, 0.06, 0.75]); solid(4, -6.6, 4, 0.7);
+  box(Z.house, "#333", [3.0, 0.97, -6.6], [0.7, 0.02, 0.5]); box(Z.house, "#e0e6ee", [7.5, 1.0, -6.4], [0.8, 2.0, 0.8]); solid(7.5, -6.4, 0.8, 0.8);
+  box(Z.house, "#bfe8ff", [7.89, 1.6, -3], [0.02, 1.0, 1.4]);
+  const table = group(Z.house, [4.6, 0, -3.4]);
+  cyl(table, "#ffd54f", [0, 0.75, 0], 0.75, 0.06); cyl(table, "#e0a85c", [0, 0.37, 0], 0.08, 0.74); solid(4.6, -3.4, 1.2, 1.2);
   const plate = cyl(table, "#ffffff", [0, 0.8, 0.3], 0.26, 0.02); hitbox(table, [0, 0.8, 0], [1.6, 0.4, 1.6]); table.userData.interact = "table";
-  for (const a of [0.6, 2.6]) { const c = group(Z.house, [3.5 + Math.sin(a) * 1.1, 0, -2.0 + Math.cos(a) * 1.1]); box(c, "#ff9fc4", [0, 0.45, 0], [0.45, 0.06, 0.45]); box(c, "#ff9fc4", [0, 0.75, -0.2], [0.45, 0.6, 0.06]); c.rotation.y = a + Math.PI; }
-  ball(Z.house, "#ff5a5a", [2.0, 1.02, -4.5], 0.08); ball(Z.house, "#ffd54f", [2.2, 1.0, -4.5], 0.07);
-  // living room: sofa, TV, radio, goldfish bowl
-  box(Z.house, "#7bd389", [-3.8, 0.35, 4.2], [2.6, 0.7, 0.9]); box(Z.house, "#7bd389", [-3.8, 0.8, 4.55], [2.6, 0.7, 0.2]); solid(-3.8, 4.3, 2.6, 1.0);
-  box(Z.house, "#333", [-3.8, 1.4, 0.15], [1.8, 1.0, 0.08]); box(Z.house, "#5fc8ff", [-3.8, 1.4, 0.2], [1.65, 0.85, 0.02]);
-  box(Z.house, "#e0a85c", [-3.8, 0.25, 2.3], [1.2, 0.5, 0.7]); solid(-3.8, 2.3, 1.2, 0.7);
-  box(Z.house, "#ffffff", [5.4, 0.5, 4.3], [1.0, 1.0, 0.6]); solid(5.4, 4.3, 1.0, 0.6);
+  for (const a of [0.6, 2.6]) { const c = group(Z.house, [4.6 + Math.sin(a) * 1.1, 0, -3.4 + Math.cos(a) * 1.1]); box(c, "#ff9fc4", [0, 0.45, 0], [0.45, 0.06, 0.45]); box(c, "#ff9fc4", [0, 0.75, -0.2], [0.45, 0.6, 0.06]); c.rotation.y = a + Math.PI; }
+  ball(Z.house, "#ff5a5a", [2.6, 1.02, -6.5], 0.08); ball(Z.house, "#ffd54f", [2.8, 1.0, -6.5], 0.07);
+  // living room
+  box(Z.house, "#7bd389", [-5.5, 0.35, 4.2], [2.6, 0.7, 0.9]); box(Z.house, "#7bd389", [-5.5, 0.8, 4.55], [2.6, 0.7, 0.2]); solid(-5.5, 4.3, 2.6, 1.0);
+  box(Z.house, "#333", [-6.2, 1.4, 0.15], [1.8, 1.0, 0.08]); box(Z.house, "#5fc8ff", [-6.2, 1.4, 0.2], [1.65, 0.85, 0.02]);
+  box(Z.house, "#e0a85c", [-5.5, 0.25, 2.4], [1.2, 0.5, 0.7]); solid(-5.5, 2.4, 1.2, 0.7);
+  box(Z.house, "#ffffff", [7.2, 0.5, 4.3], [1.0, 1.0, 0.6]); solid(7.2, 4.3, 1.0, 0.6);
   function makeRadio(parent, pos, id) {
     const r = group(parent, pos);
     box(r, "#ff8a3c", [0, 0.13, 0], [0.42, 0.26, 0.16]); cyl(r, "#333", [-0.08, 0.13, 0.082], 0.07, 0.01, [Math.PI / 2, 0, 0]);
@@ -1015,10 +1032,10 @@ CD.registerCareer({
     textSprite(r, ["📻 Radio"], [0, 0.6, 0], 0.13, { w: 256, h: 80, size: 42, bg: "#ffffffdd", radius: 30 });
     return r;
   }
-  const RADIOS = { home: { obj: makeRadio(Z.house, [5.4, 1.0, 4.3], "home"), on: false, pos: [5.4, 4.3] } };
+  const RADIOS = { home: { obj: makeRadio(Z.house, [7.2, 1.0, 4.3], "home"), on: false, pos: [7.2, 4.3] } };
   RADIOS.home.obj.rotation.y = Math.PI;
-  box(Z.house, "#ffffff", [-5.5, 0.4, 1.0], [0.6, 0.8, 0.6]); solid(-5.5, 1.0, 0.6, 0.6);
-  mesh(sphG(), new THREE.MeshLambertMaterial({ color: "#9fe0ff", transparent: true, opacity: 0.45 }), Z.house, [-5.5, 1.0, 1.0], [0.25, 0.2, 0.25]);
+  box(Z.house, "#ffffff", [-7.5, 0.4, 1.0], [0.6, 0.8, 0.6]); solid(-7.5, 1.0, 0.6, 0.6);
+  mesh(sphG(), new THREE.MeshLambertMaterial({ color: "#9fe0ff", transparent: true, opacity: 0.45 }), Z.house, [-7.5, 1.0, 1.0], [0.25, 0.2, 0.25]);
   // yard: path stones, driveway, mailbox
   for (let i = 0; i < 5; i++) cyl(null, "#d9d4c7", [0, 0.03, 6.2 + i * 1.3], 0.45, 0.03);
   plane(null, mat("#b8b4ab"), [8.5, 0.02, 9], 3.4, 8);
@@ -1079,13 +1096,13 @@ CD.registerCareer({
 
   /* ---------- CLINIC (x 0..20, z 80..96) + parking + paddock ---------- */
   const cW = "#ffffff";
-  wallLine(0, 80, 20, 80, cW, [[5, 1.6]]); wallLine(0, 96, 20, 96, cW); wallLine(20, 80, 20, 96, cW); wallLine(0, 80, 0, 96, cW, [[90, 1.6]]);
+  wallLine(0, 80, 20, 80, cW, [[5, 2.2]]); wallLine(0, 96, 20, 96, cW); wallLine(20, 80, 20, 96, cW); wallLine(0, 80, 0, 96, cW, [[90, 2.2]]);
   wallLine(10, 80, 10, 96, "#ffd98a", [[88, 2.6]]);
   box(null, "#ff9fc4", [10, H + 0.2, 88], [20.6, 0.4, 16.6]);
   textPlane(null, ["🐾 Happy Paws Vet Clinic 🐾"], [10, 3.6, 79.85], 9, { w: 1024, h: 140, bg: "#6a4bc4", fg: "#fff", size: 70, border: "#ffffff" }, Math.PI);
   box(null, "#6a4bc4", [10, 3.6, 79.92], [9.2, 1.35, 0.1]);
   // entrance: open glass doors, awning, welcome mat, front windows
-  box(null, "#ff9fc4", [5, 2.5, 79.4], [2.6, 0.12, 1.2]); for (const s of [-1, 1]) box(null, "#9fdcff", [5 + s * 1.15, 1.1, 79.85], [0.7, 2.2, 0.06]);
+  box(null, "#ff9fc4", [5, 2.5, 79.4], [2.6, 0.12, 1.2]); for (const s of [-1, 1]) box(null, "#9fdcff", [5 + s * 1.45, 1.1, 79.85], [0.7, 2.2, 0.06]);
   plane(null, mat("#3fcf8e"), [5, 0.03, 79.2], 1.6, 1.0); for (const x of [1.8, 8.4, 13, 17.4]) box(null, "#bfe8ff", [x, 1.6, 79.88], [1.8, 1.1, 0.05]);
   plane(Z.clinic, mat("#fffaf0"), [10, H - 0.01, 88], 20, 16, Math.PI / 2);
   plane(Z.clinic, new THREE.MeshLambertMaterial({ map: floorTex("#f6dcae", "#f0cf98", 5, 8) }), [5, 0.03, 88], 10, 16);
@@ -1171,7 +1188,7 @@ CD.registerCareer({
     const g = x.createRadialGradient(50, 45, 10, 64, 64, 62); g.addColorStop(0, "#fff6b0"); g.addColorStop(1, "#f0a800"); x.fillStyle = g; x.beginPath(); x.arc(64, 64, 60, 0, 7); x.fill();
     x.lineWidth = 6; x.strokeStyle = "#fff3a0"; x.stroke(); x.fillStyle = "#b86e00"; x.beginPath(); x.ellipse(64, 78, 22, 18, 0, 0, 7); x.fill();
     [[38, 52], [54, 40], [74, 40], [90, 52]].forEach(([a, b]) => { x.beginPath(); x.ellipse(a, b, 9, 11, 0, 0, 7); x.fill(); }); return new THREE.CanvasTexture(c); })();
-  const PAWS = [[-5.6, -4.6], [5.3, -2.6], [-5.5, 4.4], [-9.5, 7], [-20, 10.5], [-3, 36], [15, 42], [-24, 52], [6, 63], [34, 20.4], [48, 74], [1, 95.3], [19, 95], [-20, 90], [32, 90]].map(([x, z], i) => {
+  const PAWS = [[-2.2, -6.3], [7.2, -1.2], [-7.4, 3.4], [-9.5, 7], [-20, 10.5], [-3, 36], [15, 42], [-24, 52], [6, 63], [34, 20.4], [48, 74], [1, 95.3], [19, 95], [-20, 90], [32, 90]].map(([x, z], i) => {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: pawTex, transparent: true })); s.scale.setScalar(0.55); s.position.set(x, 0.6, z);
     (zoneFor(x, z) || scene).add(s); s.userData.paw = i; reg("paw:" + i, s); return s;
   });
@@ -1186,7 +1203,7 @@ CD.registerCareer({
     { id: "snail", name: "Snail", emoji: "🐌", pos: [-9.6, 0, 11.2], sound: "pop", fact: "Snails carry their house on their back, and some can sleep for months!" },
     { id: "bunny", name: "Bunny", emoji: "🐰", pos: [-1.5, 0, 99], sound: "boing", fact: "A bunny's teeth never stop growing, so bunnies chew a lot to keep them short." },
     { id: "bluebird", name: "Bluebird", emoji: "🐦", pos: [-3, 1.15, 95], sound: "chirpy", fact: "Birds have hollow bones, which makes them light enough to fly." },
-    { id: "goldfish", name: "Goldfish", emoji: "🐠", pos: [-5.5, 1.0, 1.0], sound: "pop", fact: "Goldfish can remember things for months, not just a few seconds!" },
+    { id: "goldfish", name: "Goldfish", emoji: "🐠", pos: [-7.5, 1.0, 1.0], sound: "pop", fact: "Goldfish can remember things for months, not just a few seconds!" },
     { id: "bee", name: "Bee", emoji: "🐝", pos: [38, 1.2, 20.8], sound: "buzz", fact: "Bees do a wiggle dance to tell other bees where the best flowers are." },
   ];
   CRITTERS.forEach((c, i) => {
@@ -1392,21 +1409,22 @@ CD.registerCareer({
       else if (ps === "toExam") { msg = `Follow ${n} to the exam room ➜`; tgt = c.pet; }
       else if (ps === "ready") { msg = c.p.animal === "horse" ? `Tap ${n} to start her check-up 🩺` : `${n} is on the exam table. Tap ${n} to start the check-up! 🩺`; tgt = c.pet; }
     } else if (s === "free") { msg = ""; }
-    G.markerTarget = tgt; setPrompt(msg);
+    G.markerTarget = tgt; G.promptBase = msg; G.promptRoute = null; setPrompt(msg);
   }
   function startDay() {
     G.started = true; $("hud").hidden = false; $("drName").textContent = "🩺 " + G.dr; hidePanel(); hud();
-    G.step = "wake"; player.x = -4.6; player.z = -3.0; player.eye = 0.75; player.yaw = lookYaw(-4.6, -3, -3.3, -4.4); player.pitch = 1.0;
+    G.step = "wake"; player.x = -6.9; player.z = -5.0; player.eye = 0.75; player.yaw = lookYaw(-6.9, -5, -5.6, -6.6); player.pitch = 1.0;
     initAudio(); G.alarmT = setInterval(() => sound("alarm"), 1400); sound("alarm");
     G.mode = "cutscene";
-    tween(1.6, (k) => { k = ease(k); player.eye = 0.75 + 0.75 * k; player.pitch = 1.0 - 1.15 * k; player.x = -4.6 + 1.2 * k; player.z = -3.0 + 0.4 * k; player.yaw = lookYaw(player.x, player.z, -3.3, -4.4); }, () => { G.mode = "walk"; });
+    tween(1.6, (k) => { k = ease(k); player.eye = 0.75 + 0.75 * k; player.pitch = 1.0 - 1.15 * k; player.x = -6.9 + 1.7 * k; player.z = -5.0 + 0.9 * k; player.yaw = lookYaw(player.x, player.z, -5.6, -6.6); }, () => { G.mode = "walk"; refreshUI(); });
     nextPrompt();
   }
   function wakeTask(t) {
     if (G.wake[t]) return;
     if (t === "alarm") { G.wake.alarm = true; clearInterval(G.alarmT); sound("pop"); toast("⏰ Click! The alarm is off. Good morning!"); }
-    if (t === "curtains") { G.wake.curtains = true; sound("swoosh"); tween(0.8, (k) => curtains.forEach((c, i) => { c.position.x = -3.5 + (i ? 1 : -1) * (0.45 + 0.55 * k); c.scale.x = 0.92 - 0.55 * k; })); sunbeam.visible = true; setTimeout(() => sound("chirpy"), 500); toast("☀️ What a sunny day!"); }
-    if (t === "dressed") { G.wake.dressed = true; }
+    if (t === "curtains") { G.wake.curtains = true; sound("swoosh"); tween(0.8, (k) => curtains.forEach((c, i) => { c.position.x = WINX + (i ? 1 : -1) * (0.45 + 0.55 * k); c.scale.x = 0.92 - 0.55 * k; })); sunbeam.visible = true; setTimeout(() => sound("chirpy"), 500); toast("☀️ What a sunny day!"); }
+    if (t === "dressed") { G.wake.dressed = true;   // step back from the closet and turn toward the bedroom door
+      setTimeout(() => { if (G.mode === "walk" && !auto && Math.hypot(player.x + 1.45, player.z + 4.8) < 2.6) { const [x, z] = collide(-2.9, -3.4); camTo(x, z, lookYaw(x, z, -3.5, 0), -0.12, 0.8); } }, 400 / SPD); }
     addStars(1);
     if (G.wake.alarm && G.wake.curtains && G.wake.dressed) { G.step = "breakfast"; setTimeout(() => toast("✅ All ready! Time for breakfast 🍳"), 600); }
     nextPrompt();
@@ -1426,7 +1444,7 @@ CD.registerCareer({
     showPanel(el("div.card", null, el("h1", null, "🍽️ Breakfast time!"), el("p", null, "Pick 3 yummy foods for your plate:"), grid));
   }
   function serve(foods) {
-    foods.forEach((f, i) => { const s = textSprite(table, [f], [Math.sin(i * 2.1) * 0.13, 0.95, 0.3 + Math.cos(i * 2.1) * 0.13], 0.16, { w: 128, h: 128, bg: null, size: 100 });
+    foods.forEach((f, i) => { const s = textSprite(table, [f], [(i - 1) * 0.3, 0.95, 0.25], 0.16, { w: 128, h: 128, bg: null, size: 100 });
       hitbox(s, [0, 0, 0], [1.5, 1.5, 1.5]); reg("food:" + i, s); G.foodsOnPlate.push(s); });
     nextPrompt();
   }
@@ -1679,7 +1697,7 @@ CD.registerCareer({
   function cancelAuto() { auto = null; }
   function walkTo(tx, tz, then, stopDist = 0.2) {
     const pts = routeRooms(roomAt(player.x, player.z), roomAt(tx, tz)).map((p) => [...p]);
-    pts.push([tx, tz]); auto = { pts, then, stopDist, stuck: 0, last: [player.x, player.z] };
+    [tx, tz] = collide(tx, tz, 0.3); pts.push([tx, tz]); auto = { pts, then, stopDist, stuck: 0, last: [player.x, player.z] };
   }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   function pick(cx, cy) {
@@ -1730,6 +1748,34 @@ CD.registerCareer({
       const r = ROOMS[roomAt(p.x, p.z)]; if (r) { const [a, b, c, e] = r[0]; const cx = (a + b) / 2, cz = (c + e) / 2, l2 = Math.hypot(cx - p.x, cz - p.z) || 1; tx = p.x + (cx - p.x) / l2 * d; tz = p.z + (cz - p.z) / l2 * d; } }
     walkTo(tx, tz, () => { player.yaw = lookYaw(player.x, player.z, p.x, p.z); fn(); });
   }
+  // find a free spot near the player (same room), preferring the direction of (tx,tz)
+  function nudgeFree(tx, tz) {
+    const room = roomAt(player.x, player.z), pref = tx != null ? Math.atan2(tx - player.x, tz - player.z) : player.yaw + Math.PI;
+    for (const d of [0.7, 1.1, 1.6]) for (let k = 0; k < 12; k++) {
+      const a = pref + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 6), x = player.x + Math.sin(a) * d, z = player.z + Math.cos(a) * d, [cx, cz] = collide(x, z);
+      if (Math.hypot(cx - x, cz - z) < 1e-3 && roomAt(x, z) === room) { player.x = x; player.z = z; return true; }
+    }
+    return false;
+  }
+  // 🧭: walk to the current objective (through doorways)
+  function goToObjective() {
+    const tg = G.markerTarget; if (!tg || G.mode !== "walk" || !$("panel").hidden) return;
+    if (tg.isVector3) walkTo(tg.x, tg.z, null); else approach(tg, tg === car ? 2.4 : tg.userData && tg.userData.kind === "horse" ? 2.4 : 1.2, () => {});
+  }
+  // "I'm stuck": jump next to the current objective
+  function unstick() {
+    hidePanel(); cancelAuto();
+    if (G.mode === "drive") { const [x, z] = ROUTE[Math.min(CAR.wp, ROUTE.length - 2)], [x2, z2] = ROUTE[Math.min(CAR.wp, ROUTE.length - 2) + 1]; car.position.set(x, 0, z); CAR.heading = Math.atan2(x2 - x, z2 - z); CAR.speed = 0; toast("🚗 Back on the road!"); return; }
+    if (G.mode !== "walk") return;
+    const c = G.pi >= 0 && cur();
+    const spot = { wake: [-3.5, -3.2], breakfast: [4.6, -1.6], toCar: [6, 8], drive: [6, 8], toClinic: [5, 78], book: [4, 91.4], free: [0, 7], summary: [5, 86] }[G.step]
+      || (c && (c.p.animal === "horse" ? [-1.3, 90] : G.ps === "ready" ? [12.6, 88.3] : [5, 86])) || [0, 7];
+    if (G.step === "drive") { car.position.set(8.5, 0, 8); CAR.heading = 0; }
+    [player.x, player.z] = collide(spot[0], spot[1]); player.eye = 1.5; player.pitch = -0.1;
+    const tg = G.markerTarget; if (tg) { const p = tg.isVector3 ? tg : objPos(tg); player.yaw = lookYaw(player.x, player.z, p.x, p.z); }
+    sound("sparkle"); toast("✨ Whoosh! Here you go. Follow the yellow arrow!", 3000); nextPrompt();
+  }
+  $("promptGo").onclick = goToObjective;
   function discover(i) {
     const c = CRITTERS[i]; sound(c.sound); const first = !G.found[c.id];
     if (first) { G.found[c.id] = true; sound("discover"); addStars(1); hud(); }
@@ -1849,12 +1895,17 @@ CD.registerCareer({
         const stop = auto.pts.length === 1 ? auto.stopDist : 0.35;
         if (L < stop) { auto.pts.shift(); if (!auto.pts.length) { const fn = auto.then; auto = null; fn && fn(); } }
         else { const want = Math.atan2(-dx, -dz); let d = want - player.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); player.yaw += d * Math.min(1, dt * 6); mf = Math.min(1, L * 1.5) * (Math.abs(d) > 1.2 ? 0.2 : 1); ms = 0;
-          auto.stuck += dt; if (auto.stuck > 0.8) { if (Math.hypot(player.x - auto.last[0], player.z - auto.last[1]) < 0.15) { auto = null; toast("Oops, something is in the way! Try walking around it."); } else { auto.stuck = 0; auto.last = [player.x, player.z]; } } }
+          auto.stuck += dt; if (auto.stuck > 0.8) { if (Math.hypot(player.x - auto.last[0], player.z - auto.last[1]) < 0.15) { if (!auto.nudged && nudgeFree(tx, tz)) { auto.nudged = true; auto.stuck = 0; } else { auto = null; toast("Oops, something is in the way! Tap 🧭 to get help."); } } else { auto.stuck = 0; auto.last = [player.x, player.z]; } } }
       }
       if (mf || ms) {
-        const sp = (auto ? 3.6 : 3.2) * SPD * dt, fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+        let sp = (auto ? 3.6 : 3.2) * SPD * dt; if (auto) { const [ax, az] = auto.pts[0]; sp = Math.min(sp, Math.hypot(ax - player.x, az - player.z) + 0.02); }
+        const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
         let nx = player.x + (fx * mf - fz * ms) * sp, nz = player.z + (fz * mf + fx * ms) * sp;
-        [nx, nz] = collide(nx, nz); player.x = nx; player.z = nz;
+        [nx, nz] = collide(nx, nz);
+        const moved = Math.hypot(nx - player.x, nz - player.z); player.x = nx; player.z = nz;
+        // stuck watchdog: pushing the stick but not moving for a while -> hop to a free spot nearby
+        G.stuckT = moved < sp * 0.15 ? (G.stuckT || 0) + dt : 0;
+        if (G.stuckT > 1.2) { G.stuckT = 0; if (nudgeFree()) toast("Wiggle wiggle! Try this way 🙂"); }
         stepT += dt * Math.hypot(mf, ms) * SPD; if (stepT > 0.36) { stepT = 0; const r = roomAt(player.x, player.z); sound("step", r === "kit" || r === "cexam" ? "tile" : "wood"); }
       }
       if (G.mode === "walk" && !G.busy) {
@@ -1902,9 +1953,12 @@ CD.registerCareer({
     spot.visible = G.step === "drive"; if (spot.visible) spot.scale.setScalar(1 + Math.sin(time * 4) * 0.08);
     // marker
     let mt = null; const tg = G.markerTarget;
-    if (tg && G.mode !== "exam") { mt = tg.isVector3 ? tmpV.copy(tg) : objPos(tg); }
+    let viaDoor = false;
+    if (tg && G.mode !== "exam") { mt = tg.isVector3 ? tmpV.copy(tg) : objPos(tg);
+      if (G.mode === "walk") { const pr = roomAt(player.x, player.z), tr = roomAt(mt.x, mt.z); if (pr !== tr) { const r = routeRooms(pr, tr); if (r.length) { mt = tmpV.set(r[0][0], 0, r[0][1]); viaDoor = true; } } } }
+    if (G.promptBase && viaDoor !== G.promptRoute) { G.promptRoute = viaDoor; setPrompt(G.promptBase + (viaDoor ? " 🚪 Follow the arrow to the door first!" : "")); }
     marker.visible = ring.visible = !!mt && !panelOpen && G.mode !== "drive";
-    if (mt) { const top = tg.userData && tg.userData.top ? tg.userData.top : tg === car ? 2.6 : 1.2; ring.position.set(mt.x, (tg.userData && tg.userData.kind && tg.position.y > 0.5 ? mt.y : 0) + 0.03, mt.z); marker.position.set(mt.x, mt.y + top + 0.35 + Math.sin(time * 4) * 0.08, mt.z); marker.rotation.y = time * 2; ring.scale.setScalar(1 + Math.sin(time * 4) * 0.08); }
+    if (mt) { const top = viaDoor ? 1.3 : tg.userData && tg.userData.top ? tg.userData.top : tg === car ? 2.6 : 1.2; ring.position.set(mt.x, (!viaDoor && tg.userData && tg.userData.kind && tg.position.y > 0.5 ? mt.y : 0) + 0.03, mt.z); marker.position.set(mt.x, mt.y + top + 0.35 + Math.sin(time * 4) * 0.08, mt.z); marker.rotation.y = time * 2; ring.scale.setScalar(1 + Math.sin(time * 4) * 0.08); }
     // confetti + hearts
     if (confetti.visible) {
       const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
@@ -1920,7 +1974,15 @@ CD.registerCareer({
   }
   const nurse = makePerson({ shirt: "#ff7eb6", pants: "#ff7eb6", skin: "#c68c5a", hair: "#2b1a12", name: clinic.helper.name, bun: true, pos: [4, 0, 94.6], rot: Math.PI, parent: Z.clinic });
   reg("nurse", nurse);
-  function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+  // portrait phones: wider view + hands pulled toward the middle so they stay on screen
+  const BASE_REST = { r: HAND_REST.r.clone(), l: HAND_REST.l.clone() };
+  function resize() {
+    renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight;
+    const portrait = camera.aspect < 0.9; camera.fov = portrait ? 82 : 68; G.baseFov = camera.fov;
+    const k = portrait ? Math.max(0.45, camera.aspect / 0.9) : 1;
+    const dy = portrait ? -0.1 : 0; HAND_REST.r.set(BASE_REST.r.x * k, BASE_REST.r.y + dy, BASE_REST.r.z); HAND_REST.l.set(BASE_REST.l.x * k, BASE_REST.l.y + dy, BASE_REST.l.z);
+    camera.updateProjectionMatrix();
+  }
   addEventListener("resize", resize); resize();
   function controlsHelp() {
     return el("div.controls-help", null,
@@ -1929,7 +1991,8 @@ CD.registerCareer({
       el("div", null, "✨ Tap things to walk to them and use them. Follow the yellow arrow for your next job!"),
       el("div", null, "🐾 Explore anytime: find golden paws, critters, and surprises!"));
   }
-  $("helpBtn").onclick = () => { if (!$("panel").hidden) return; showPanel(el("div.card", null, el("h2", null, "How to play"), controlsHelp(), el("button.btn", { onclick: hidePanel }, "OK 👍"))); };
+  $("helpBtn").onclick = () => { if (!$("panel").hidden) return; showPanel(el("div.card", null, el("h2", null, "How to play"), controlsHelp(),
+    el("div", null, el("button.btn", { onclick: hidePanel }, "OK 👍"), el("button.btn.white", { id: "stuckBtn", onclick: unstick }, "😵 I'm stuck!")))); };
   $("muteBtn").onclick = (e) => { setMuted(!muted); e.currentTarget.textContent = muted ? "🔇" : "🔊"; };
   $("musicBtn").onclick = (e) => { setMusic(!musicOn); e.currentTarget.classList.toggle("off", !musicOn); toast(musicOn ? "🎵 Background music on" : "🎵 Background music off"); };
   function startScreen() {
@@ -1938,18 +2001,29 @@ CD.registerCareer({
       nameIn, controlsHelp(),
       el("button.btn.green", { id: "startBtn", onclick: () => { const n = (nameIn.value || "").trim(); G.dr = "Dr. " + (n ? n[0].toUpperCase() + n.slice(1) : "Vet"); startDay(); } }, "Start my day! ▶")));
   }
-  player.x = -4.6; player.z = -3.0; player.eye = 0.75; player.pitch = 1.0;
+  player.x = -6.9; player.z = -5.0; player.eye = 0.75; player.pitch = 1.0;
   refreshUI(); startScreen(); hud(); requestAnimationFrame(frame);
 
   // ---- test hooks ----
   G.screenPos = (id) => {
     const o = id === "spot" ? spot : OBJ[id]; if (!o) return null; const v = objPos(o);
-    if (o.userData.kind) { const u = o.userData, p = cur() && o === cur().pet ? petPoint("side") : v.add(new THREE.Vector3(0, 0.4, 0)); v.copy(p); } else if (o.userData.person) v.y += 1.2; else if (id === "car") v.y += 1;
+    if (o.userData.kind) { const u = o.userData, p = cur() && o === cur().pet ? petPoint("side") : v.add(new THREE.Vector3(0, 0.4, 0)); v.copy(p); } else if (o.userData.person) v.y += 1.2; else if (id === "car") v.y += 1; else if (id === "table") v.y += 0.78;
     camera.updateMatrixWorld(true); v.project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, onScreen: v.z < 1 && Math.abs(v.x) < 0.98 && Math.abs(v.y) < 0.98 };
   };
   G.lookAtObj = (id) => { const p = objPos(OBJ[id]); player.yaw = lookYaw(player.x, player.z, p.x, p.z); player.pitch = Math.atan2(p.y + 0.3 - player.eye, Math.hypot(p.x - player.x, p.z - player.z)); };
-  G.tp = (x, z) => { cancelAuto(); player.x = x; player.z = z; }; G.player = player; G.CAR = CAR; G.car = car; G.ps_ = () => G.ps;
+  G.tp = (x, z) => { cancelAuto(); player.x = x; player.z = z; }; G.roomAt = () => roomAt(player.x, player.z);
+  const markerXZ = () => { let p = G.markerTarget.isVector3 ? G.markerTarget : objPos(G.markerTarget); const pr = roomAt(player.x, player.z), tr = roomAt(p.x, p.z); if (pr !== tr) { const r = routeRooms(pr, tr); if (r.length) return r[0]; } return [p.x, p.z]; };
+  G.markerDir = () => { const [x, z] = markerXZ(); let d = lookYaw(player.x, player.z, x, z) - player.yaw; return Math.atan2(Math.sin(d), Math.cos(d)); };
+  G.faceMarker = () => { const [x, z] = markerXZ(); player.yaw = lookYaw(player.x, player.z, x, z); player.pitch = -0.25; };
+  G.project = (x, z) => { const v = new THREE.Vector3(x, 0, z); camera.updateMatrixWorld(true); v.project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; };
+  // every 0.25 m floor point in the house + clinic: if you are standing there (after push-out), can you step away in some direction?
+  G.trapSweep = () => { let pts = 0, trapped = 0; const bad = [];
+    for (const [x1, x2, z1, z2] of [[-8, 8, -7, 5], [0, 20, 80, 96]]) for (let x = x1 + 0.1; x < x2; x += 0.25) for (let z = z1 + 0.1; z < z2; z += 0.25) {
+      const [px, pz] = collide(x, z); if (roomAt(px, pz) === "out") continue; pts++;
+      let free = 0; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, tx = px + Math.sin(a) * 0.3, tz = pz + Math.cos(a) * 0.3, [cx, cz] = collide(tx, tz); if (Math.hypot(cx - px, cz - pz) > 0.12) free++; }
+      if (!free) { trapped++; bad.push([+px.toFixed(2), +pz.toFixed(2)]); } }
+    return { pts, trapped, bad: bad.slice(0, 8) }; }; G.inSolid = () => colliders.some((b) => !b.off && player.x > b.x1 - 0.2 && player.x < b.x2 + 0.2 && player.z > b.z1 - 0.2 && player.z < b.z2 + 0.2); G.player = player; G.CAR = CAR; G.car = car; G.ps_ = () => G.ps;
   G.renderInfo = () => renderer.info.render; G.event = startEvent; G.pick = pick; G.audio = A; G.duck_ = () => DUCK.state; G.cur_ = () => cur() && cur().p.name;
   G.pawPos = () => PAWS.filter((s) => s.visible).map((s) => [s.position.x, s.position.z]);
 })();
