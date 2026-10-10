@@ -122,7 +122,27 @@ input.name { font-size: 28px; font-family: inherit; padding: 10px 16px; border-r
   #prompt { left: 8px; right: 8px; transform: none; width: auto; max-width: none; top: 56px; display: flex; align-items: center; gap: 6px; }
   #promptText { flex: 1; }
 }
-@media (max-width: 480px) { #prompt { left: 50%; right: auto; width: calc(100vw - 16px); box-sizing: border-box; } }
+@media (max-width: 480px) { #prompt { left: 8px; right: auto; transform: none; animation: none; width: calc(100vw - 16px); box-sizing: border-box; } }
+/* ---- driving controls v3: route arrow + utility row at the top, big pads in the bottom corners (wheel stays visible in the middle) ---- */
+#dash { position: fixed; inset: 0; display: block; pointer-events: none; z-index: 6; }
+#dash > * { pointer-events: auto; }
+#dashTop { position: fixed; top: 150px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; }
+#dashTop .dashBtn { width: 80px; height: 74px; font-size: 28px; }
+#dashTop .dashBtn.big { width: 120px; background: #d9ffe8; border: 4px solid #2fbf71; }
+#dashTop .dashBtn.big.on { background: #2fbf71; color: #fff; }
+#dashTop #arrowBox { width: 84px; height: 84px; }
+#pads { position: fixed; inset: auto 0 0 0; height: 0; }
+.pad { position: fixed; width: 110px; height: 110px; border-radius: 28px; font-size: 52px; font-weight: bold; box-shadow: 0 6px 0 #0004; display: flex; flex-direction: column; align-items: center; justify-content: center; touch-action: none; -webkit-user-select: none; user-select: none; }
+.pad span { font-size: 18px; } .pad.down { transform: translateY(4px); box-shadow: 0 2px 0 #0004; }
+.pad.steer { background: #ffffffee; color: #6a4bc4; bottom: 16px; } #padL { left: 16px; } #padR { right: 16px; }
+.pad.stop { background: #ffe1e1; left: 16px; bottom: 140px; } .pad.go { background: #d9ffe8; right: 16px; bottom: 140px; }
+.pad.go.on { background: #2fbf71; color: #fff; }
+@media (max-width: 480px) {
+  #dashTop { top: 132px; gap: 6px; } #dashTop .dashBtn { width: 62px; height: 60px; font-size: 22px; } #dashTop .dashBtn span { font-size: 11px; }
+  #dashTop .dashBtn.big { width: 84px; } #dashTop #arrowBox { width: 62px; height: 62px; } #arrow { font-size: 34px; } #speed { display: none; }
+  .pad { width: 84px; height: 84px; font-size: 40px; } .pad span { font-size: 14px; } .pad.steer { bottom: 14px; } #padL { left: 10px; } #padR { right: 10px; }
+  .pad.stop, .pad.go { bottom: 110px; } #padStop { left: 10px; } #padGo { right: 10px; }
+}
 </style>
 </head>
 <body>
@@ -139,12 +159,19 @@ input.name { font-size: 28px; font-family: inherit; padding: 10px 16px; border-r
 <div id="clues" hidden><div class="clues-title">📋 Clues</div><div id="clueList"></div></div>
 <div id="toolbar" hidden></div>
 <div id="dash" hidden>
-  <div id="arrowBox"><div id="arrow">⬆</div></div>
-  <div id="speed" class="pill">0 mph</div>
-  <button id="radioBtn" class="dashBtn">📻<span>Radio</span></button>
-  <button id="autoBtn" class="dashBtn">🧭<span>Auto-drive</span></button>
-  <button id="brakeBtn" class="dashBtn red">🛑<span>Stop</span></button>
-  <button id="exitBtn" class="dashBtn">🚪<span>Get out</span></button>
+  <div id="dashTop">
+    <div id="arrowBox"><div id="arrow">⬆</div></div>
+    <button id="autoBtn" class="dashBtn big">🧭<span>Auto-drive</span></button>
+    <button id="radioBtn" class="dashBtn">📻<span>Radio</span></button>
+    <button id="exitBtn" class="dashBtn">🚪<span>Get out</span></button>
+    <div id="speed" class="pill">0 mph</div>
+  </div>
+  <div id="pads" hidden>
+    <button id="padStop" class="pad stop">🛑<span>STOP</span></button>
+    <button id="padGo" class="pad go">🚗<span>GO</span></button>
+    <button id="padL" class="pad steer" aria-label="Steer left">◀</button>
+    <button id="padR" class="pad steer" aria-label="Steer right">▶</button>
+  </div>
 </div>
 <div id="joy" hidden><div id="joyKnob"></div></div>
 <div id="panel" hidden></div>
@@ -931,14 +958,15 @@ CD.registerCareer({
   const grassT = canvasTex(64, 64, (x) => { x.fillStyle = "#8fd16a"; x.fillRect(0, 0, 64, 64); x.fillStyle = "#86c862"; for (let i = 0; i < 40; i++) x.fillRect(Math.random() * 64, Math.random() * 64, 3, 3); }, 60, 60);
   plane(null, new THREE.MeshLambertMaterial({ map: grassT }), [0, 0, 45], 260, 260);
   const roadMatH = new THREE.MeshLambertMaterial({ map: canvasTex(128, 64, (x, w, h) => { x.fillStyle = PAL.road; x.fillRect(0, 0, w, h); x.fillStyle = "#ffe066"; x.fillRect(0, 30, 60, 4); x.fillStyle = "#ffffff"; x.fillRect(0, 2, w, 2); x.fillRect(0, h - 4, w, 2); }) });
+  const RW = 9;   // wide, kid-friendly roads
   function road(cx, cz, len, horiz) {
-    const t = roadMatH.map.clone(); t.needsUpdate = true; t.repeat.set(len / 6, 1); const m = new THREE.MeshLambertMaterial({ map: t });
-    const p = plane(null, m, [cx, 0.02, cz], len, 6); if (!horiz) p.rotation.z = Math.PI / 2; return p;
+    const t = roadMatH.map.clone(); t.needsUpdate = true; t.repeat.set(len / 9, 1); const m = new THREE.MeshLambertMaterial({ map: t });
+    const p = plane(null, m, [cx, 0.02, cz], len, RW); if (!horiz) p.rotation.z = Math.PI / 2; return p;
   }
-  road(0, 16, 98, true); road(0, 76, 98, true); road(46, 46, 66, false); road(-46, 46, 66, false);
-  for (const [x, z] of [[46, 16], [-46, 16], [46, 76], [-46, 76]]) plane(null, mat(PAL.road), [x, 0.025, z], 6, 6);
+  road(0, 17, 101, true); road(0, 75, 101, true); road(46, 46, 58, false); road(-46, 46, 58, false);
+  for (const [x, z] of [[46, 17], [-46, 17], [46, 75], [-46, 75]]) plane(null, mat(PAL.road), [x, 0.025, z], RW, RW);
   // sidewalk strips along the main street + clinic street
-  plane(null, mat(PAL.walk), [0, 0.015, 12.4], 98, 1.2); plane(null, mat(PAL.walk), [0, 0.015, 79.6], 98, 1.2);
+  plane(null, mat(PAL.walk), [0, 0.015, 12.1], 101, 0.8); plane(null, mat(PAL.walk), [0, 0.015, 79.75], 101, 0.5);
   // big sun + clouds (cheap, unlit)
   mesh(sphG(), new THREE.MeshBasicMaterial({ color: "#fff3a0", fog: false }), null, [-60, 70, 140], [8, 8, 8]);
   const clouds = [];
@@ -946,7 +974,7 @@ CD.registerCareer({
 
   /* ---------- trees (instanced: 2 draw calls for all of them) ---------- */
   const TREES = [[-8, 9], [-10, 3], [10, 2], [-13, -4], [12, -6], [-24, 2], [-38, 8], [14, 4], [30, 3], [40, 8], [-22, 30], [-28, 40], [-24, 58], [-12, 63], [4, 64], [15, 60], [18, 33], [-2, 33], [-30, 52], [12, 52],
-    [-36, 24], [-36, 68], [36, 40], [36, 60], [30, 68], [-40, 46], [52, 30], [52, 60], [-52, 40], [-52, 64], [40, 86], [44, 94], [-26, 86], [-28, 98], [-8, 102], [10, 102], [26, 100], [-58, 20], [58, 20], [0, -12], [-20, -10], [20, -12]];
+    [-36, 24], [-36, 68], [36, 40], [36, 60], [30, 68], [-40, 46], [52, 30], [52, 60], [-56, 40], [-56, 64], [40, 86], [44, 94], [-26, 86], [-28, 98], [-8, 102], [10, 102], [26, 100], [-58, 20], [58, 20], [0, -12], [-20, -10], [20, -12]];
   {
     const trunkI = new THREE.InstancedMesh(cylG(8), mat("#9b6b43"), TREES.length), leafI = new THREE.InstancedMesh(sphG(10), mat("#4cc46b"), TREES.length);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
@@ -1066,7 +1094,7 @@ CD.registerCareer({
   /* ---------- PARK ---------- */
   plane(Z.park, mat("#a6de7c"), [-5, 0.012, 46], 50, 38);
   mesh(new THREE.RingGeometry(8, 9.6, 40), mat("#f0dca8"), Z.park, [-5, 0.02, 46], null, [-Math.PI / 2, 0, 0]);
-  for (const [x1, z1, x2, z2] of [[-5, 19, -5, 37], [-5, 55, -5, 65]]) plane(Z.park, mat("#f0dca8"), [(x1 + x2) / 2, 0.02, (z1 + z2) / 2], 1.6, Math.abs(z2 - z1));
+  for (const [x1, z1, x2, z2] of [[-5, 21.5, -5, 37], [-5, 55, -5, 65]]) plane(Z.park, mat("#f0dca8"), [(x1 + x2) / 2, 0.02, (z1 + z2) / 2], 1.6, Math.abs(z2 - z1));
   // fountain
   const fountain = group(Z.park, [-5, 0, 46]);
   cyl(fountain, "#d9d4c7", [0, 0.3, 0], 2.2, 0.6); cyl(fountain, "#7fd3ff", [0, 0.58, 0], 2.0, 0.05); cyl(fountain, "#d9d4c7", [0, 1.0, 0], 0.25, 1.4); cyl(fountain, "#d9d4c7", [0, 1.7, 0], 0.9, 0.15); cyl(fountain, "#7fd3ff", [0, 1.78, 0], 0.8, 0.03);
@@ -1086,13 +1114,13 @@ CD.registerCareer({
   // benches
   for (const [x, z, r] of [[-5, 35.5, 0], [4, 55, Math.PI * 0.8], [-14, 44, Math.PI / 2]]) { const b = group(Z.park, [x, 0, z], r); box(b, "#c08a52", [0, 0.45, 0], [1.8, 0.08, 0.5]); box(b, "#c08a52", [0, 0.8, -0.22], [1.8, 0.4, 0.06]); for (const s of [-1, 1]) box(b, "#555", [s * 0.75, 0.22, 0], [0.08, 0.44, 0.45]); }
   // ice cream truck (parked by the park entrance; jingle plays when you're nearby)
-  const truck = group(null, [-10, 0, 21.5], Math.PI / 2);
+  const truck = group(null, [-10, 0, 24], Math.PI / 2);
   box(truck, "#ffffff", [0, 1.4, 0], [2.2, 2.0, 4.2]); box(truck, "#ff9fc4", [0, 0.55, 0], [2.25, 0.4, 4.25]); box(truck, "#bfe8ff", [0, 1.8, 2.11], [1.9, 0.8, 0.02]);
   box(truck, "#ffd54f", [1.12, 1.6, -0.5], [0.04, 0.9, 1.8]);
   mesh(new THREE.ConeGeometry(0.3, 0.8, 10), "#e0a85c", truck, [0, 2.8, -0.6], null, [Math.PI, 0, 0]); ball(truck, "#ff9fc4", [0, 3.3, -0.6], 0.36);
   for (const [x, z] of [[-1.1, 1.4], [1.1, 1.4], [-1.1, -1.4], [1.1, -1.4]]) cyl(truck, "#333", [x, 0.4, z], 0.4, 0.25, [0, 0, Math.PI / 2]);
   textPlane(truck, ["🍦 Ice Cream!"], [1.15, 2.2, 0], 2.6, { w: 512, h: 128, bg: "#ff5a8a", fg: "#fff", size: 64 }, Math.PI / 2);
-  hitbox(truck, [0, 1.4, 0], [2.6, 2.8, 4.6]); truck.userData.interact = "truck"; solid(-10, 21.5, 4.3, 2.3);
+  hitbox(truck, [0, 1.4, 0], [2.6, 2.8, 4.6]); truck.userData.interact = "truck"; solid(-10, 24, 4.3, 2.3);
 
   /* ---------- CLINIC (x 0..20, z 80..96) + parking + paddock ---------- */
   const cW = "#ffffff";
@@ -1144,8 +1172,8 @@ CD.registerCareer({
   box(null, "#9a9ea8", [-6, 0.3, 84], [1.6, 0.5, 0.6]); box(null, "#5ec8f2", [-6, 0.56, 84], [1.4, 0.03, 0.45]); solid(-6, 84, 1.6, 0.6);
   // clinic garden (flowers + bench) between road and clinic is the sidewalk; little dog-walk lawn east of parking
   // street signs
-  textPlane(null, ["⬆ Happy Paws Vet 🏥"], [44, 2.4, 30], 3, { w: 512, h: 128, bg: "#2fbf71", fg: "#fff", size: 54 }, -Math.PI / 2);
-  cyl(null, "#999", [44.1, 1.2, 30], 0.05, 2.4);
+  textPlane(null, ["⬆ Happy Paws Vet 🏥"], [52, 2.4, 30], 3, { w: 512, h: 128, bg: "#2fbf71", fg: "#fff", size: 54 }, -Math.PI / 2);
+  cyl(null, "#999", [52.1, 1.2, 30], 0.05, 2.4);
 
   const CONF = 160;
   const confetti = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.06, 0.035), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), CONF);
@@ -1253,11 +1281,11 @@ CD.registerCareer({
   // friendly townsfolk
   const FOLK = [
     { name: "Baker Bea", o: { shirt: "#ff9fc4", pants: "#555", apron: true, hat: "#ffffff", skin: "#e0ac69" }, pos: [18, 20.8], rot: Math.PI, lines: ["Good morning, Doctor! Bread gets fluffy because tiny yeast make little bubbles in the dough.", "Cupcakes taste even better when you share them!", "Dogs shouldn't eat chocolate, but a crunchy carrot is a great dog snack."] },
-    { name: "Mail Carrier Max", o: { shirt: "#4fa8ff", pants: "#2a4a7a", cap: "#2a4a7a", skin: "#8d5524" }, pos: [-20, 20.4], route: [[-20, 20.4], [40, 20.4]], lines: ["Special delivery! I walk about 8 miles every day delivering letters.", "Some mail carriers deliver mail by boat, or even on a mule!", "Have a pawsome day at the clinic!"] },
+    { name: "Mail Carrier Max", o: { shirt: "#4fa8ff", pants: "#2a4a7a", cap: "#2a4a7a", skin: "#8d5524" }, pos: [-38, 22.4], route: [[-38, 22.4], [10, 22.4]], lines: ["Special delivery! I walk about 8 miles every day delivering letters.", "Some mail carriers deliver mail by boat, or even on a mule!", "Have a pawsome day at the clinic!"] },
     { name: "Coach Kim", o: { shirt: "#ff5a5a", pants: "#333", cap: "#ffffff", skin: "#f1c27d" }, pos: [-5, 37.2], circle: [-5, 46, 8.8], lines: ["Jogging keeps my heart strong, just like walks keep dogs healthy!", "Your heart is a muscle about the size of your fist.", "Race you around the fountain! Just kidding, I'm super fast! 😄"] },
     { name: "Zoe", o: { shirt: "#ffd54f", pants: "#9b7bff", hair: "#6b3e1f", bun: true, scale: 0.72, skin: "#c68c5a" }, pos: [11.5, 42.5], rot: -2.4, lines: ["Try the swings! I can go super high!", "I found a golden paw near the pond once!", "When I grow up I want to be an astronaut... or a vet like you!"] },
     { name: "Grandma Gloria", o: { shirt: "#c49bff", pants: "#555", hair: "#dddddd", glasses: true, bun: true }, pos: [-5, 36.4], rot: 0, lines: ["I've been coming to this park for 50 years. The ducks know me!", "Ducks love peas and oats. Bread isn't healthy for them.", "Have you found the frog by the pond yet?"] },
-    { name: "Officer Omar", o: { shirt: "#2a4a7a", pants: "#1d2b44", cap: "#1d2b44", skin: "#8d5524" }, pos: [42.5, 72], rot: -Math.PI / 2, lines: ["Look both ways before you cross the street!", "Red means stop, green means go, and yellow means slow down.", "Drive safe, Doc! Watch out for ducks!"] },
+    { name: "Officer Omar", o: { shirt: "#2a4a7a", pants: "#1d2b44", cap: "#1d2b44", skin: "#8d5524" }, pos: [40.6, 69.6], rot: -Math.PI / 2, lines: ["Look both ways before you cross the street!", "Red means stop, green means go, and yellow means slow down.", "Drive safe, Doc! Watch out for ducks!"] },
     { name: "Neighbor Nora", o: { shirt: "#3fcf8e", pants: "#40507a", hair: "#a0522d" }, pos: [-17, 11], rot: Math.PI, lines: ["Morning, neighbor! Your flowers look ready to bloom. Tap them!", "My cat naps in the sunshine all afternoon.", "Did you check your mailbox today?"] },
   ];
   FOLK.forEach((f, i) => { f.p = makePerson(Object.assign({ name: f.name, pos: [f.pos[0], 0, f.pos[1]], rot: f.rot || 0 }, f.o)); reg("folk:" + i, f.p); f.k = 0; f.line = 0; });
@@ -1317,15 +1345,35 @@ CD.registerCareer({
     hitbox(car, [0, 1, 0], [2.2, 2, 4.2]); reg("car", car);
   }
   const CAR = { heading: 0, speed: 0, steer: 0, radio: true, auto: false, wp: 0, bonkT: 0, look: 0, box: solid(8.5, 8, 2.1, 4.1) };
-  const ROUTE = [[8.5, 14], [12, 16], [41, 16], [46, 21], [46, 71], [41, 76], [31, 76], [28, 80], [28, 86]];
+  const ROUTE = [[8.5, 14], [12, 17], [41, 17], [46, 22], [46, 70], [41, 75], [31, 75], [28, 80], [28, 86]];
+  const ROADS = [{ h: 1, c: 17, a: -50.5, b: 50.5 }, { h: 1, c: 75, a: -50.5, b: 50.5 }, { h: 0, c: 46, a: 17, b: 75 }, { h: 0, c: -46, a: 17, b: 75 }];
   function onRoad(x, z) {
-    return (Math.abs(z - 16) < 3.4 && Math.abs(x) < 49.5) || (Math.abs(z - 76) < 3.4 && Math.abs(x) < 49.5) || (Math.abs(x - 46) < 3.4 && z > 12 && z < 80) || (Math.abs(x + 46) < 3.4 && z > 12 && z < 80)
+    return ROADS.some((r) => r.h ? Math.abs(z - r.c) < 4.8 && x > r.a - 0.5 && x < r.b + 0.5 : Math.abs(x - r.c) < 4.8 && z > r.a - 4.5 && z < r.b + 4.5)
       || (x > 21.5 && x < 34.5 && z > 79 && z < 92.5) || (x > 6.8 && x < 10.3 && z > 4.5 && z < 13.5);
   }
-  // dog-bone treats to collect, cones to dodge
+  // lane assist away from the route: aim at a point 8 m ahead on the nearest road's centre line
+  function roadAssist() {
+    const x = car.position.x, z = car.position.z, fx = Math.sin(CAR.heading), fz = Math.cos(CAR.heading);
+    let best = null, bd = 9;
+    for (const r of ROADS) { const d = r.h ? Math.abs(z - r.c) + Math.max(0, r.a - x, x - r.b) : Math.abs(x - r.c) + Math.max(0, r.a - z, z - r.b); if (d < bd) { bd = d; best = r; } }
+    if (!best) return 0;
+    const tx = best.h ? x + Math.sign(fx || 1) * 8 : best.c, tz = best.h ? best.c : z + Math.sign(fz || 1) * 8;
+    let d = Math.atan2(tx - x, tz - z) - CAR.heading; d = Math.atan2(Math.sin(d), Math.cos(d));
+    return Math.abs(d) > 2.2 ? 0 : Math.max(-1, Math.min(1, -d * 1.6));
+  }
+  // dog-bone treats to collect, a couple of soft cones that just wobble out of the way
   const boneTex = (() => { const c = textCanvas(["🦴"], { w: 128, h: 128, bg: null, size: 100 }); return new THREE.CanvasTexture(c); })();
-  const BONES = [[22, 16], [32, 15], [46, 28], [46, 38], [47, 56], [46, 65], [36, 76], [8.5, 13.6]].map(([x, z]) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: boneTex, transparent: true })); s.scale.setScalar(1.1); s.position.set(x, 1.1, z); scene.add(s); return s; });
-  const CONES = [[28, 17.6], [45, 47], [47.6, 62], [18, 75]].map(([x, z]) => { const g = group(null, [x, 0, z]); mesh(geoCache.cone || (geoCache.cone = new THREE.ConeGeometry(0.3, 0.8, 10)), "#ff7a1a", g, [0, 0.4, 0]); cyl(g, "#ffffff", [0, 0.42, 0], 0.17, 0.1); box(g, "#ff7a1a", [0, 0.03, 0], [0.7, 0.06, 0.7]); return g; });
+  const BONES = [[22, 17], [32, 17], [46, 28], [46, 38], [46, 56], [46, 65], [36, 75], [8.5, 13.6]].map(([x, z]) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: boneTex, transparent: true })); s.scale.setScalar(1.3); s.position.set(x, 1.1, z); scene.add(s); return s; });
+  const CONES = [[28, 20.6], [49.6, 60]].map(([x, z]) => { const g = group(null, [x, 0, z]); mesh(geoCache.cone || (geoCache.cone = new THREE.ConeGeometry(0.3, 0.8, 10)), "#ff7a1a", g, [0, 0.4, 0]); cyl(g, "#ffffff", [0, 0.42, 0], 0.17, 0.1); box(g, "#ff7a1a", [0, 0.03, 0], [0.7, 0.06, 0.7]); return g; });
+  // painted route arrows on the road (one instanced mesh), shown while driving to work
+  const routeArrows = (() => {
+    const tex = canvasTex(64, 64, (x) => { x.fillStyle = "#ffffff"; x.beginPath(); x.moveTo(32, 4); x.lineTo(60, 34); x.lineTo(44, 34); x.lineTo(44, 60); x.lineTo(20, 60); x.lineTo(20, 34); x.lineTo(4, 34); x.closePath(); x.fill(); });
+    const pts = []; for (let i = 0; i < ROUTE.length - 1; i++) { const [x1, z1] = ROUTE[i], [x2, z2] = ROUTE[i + 1], L = Math.hypot(x2 - x1, z2 - z1), n = Math.max(1, Math.floor(L / 7)); for (let k = 0; k < n; k++) pts.push([x1 + (x2 - x1) * (k + 0.5) / n, z1 + (z2 - z1) * (k + 0.5) / n, Math.atan2(x2 - x1, z2 - z1)]); }
+    const im = new THREE.InstancedMesh(new THREE.PlaneGeometry(2.6, 3.4), new THREE.MeshBasicMaterial({ map: tex, transparent: true, color: "#ffffff", depthWrite: false }), pts.length);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    pts.forEach(([x, z, a], i) => { e.set(-Math.PI / 2, 0, a + Math.PI, "YXZ"); e.set(-Math.PI / 2, 0, 0); q.setFromEuler(new THREE.Euler(0, a, 0)).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, Math.PI))); im.setMatrixAt(i, m4.compose(new THREE.Vector3(x, 0.04, z), q, new THREE.Vector3(1, 1, 1))); });
+    im.frustumCulled = false; im.userData.noPick = true; scene.add(im); return im;
+  })();
   // duck family that crosses the road on the drive (like the 2D game)
   const DUCKS = [0, 1, 2, 3, 4].map((i) => { const g = group(null, [53 + i * 0.7, 0, 46]); const sc = i ? 0.55 : 1; ball(g, i ? "#ffe066" : "#ffffff", [0, 0.16 * sc, 0], [0.16 * sc, 0.13 * sc, 0.22 * sc]); ball(g, i ? "#ffe066" : "#ffffff", [0, 0.33 * sc, 0.15 * sc], 0.08 * sc); mesh(geoCache.beak2, "#ff9a3c", g, [0, 0.32 * sc, 0.25 * sc], [sc, sc, sc], [Math.PI / 2, 0, 0]); g.rotation.y = -Math.PI / 2; g.visible = false; return g; });
   const DUCK = { state: "none", x: 53 };
@@ -1334,42 +1382,53 @@ CD.registerCareer({
     for (let i = CAR.wp; i < ROUTE.length; i++) if (Math.hypot(ROUTE[i][0] - car.position.x, ROUTE[i][1] - car.position.z) < Math.hypot(ROUTE[best][0] - car.position.x, ROUTE[best][1] - car.position.z)) best = i;
     CAR.wp = best;
     const [tx, tz] = ROUTE[CAR.wp], dx = tx - car.position.x, dz = tz - car.position.z, L = Math.hypot(dx, dz);
-    if (L < 4 && CAR.wp < ROUTE.length - 1) CAR.wp++;
+    if (L < 4.5 && CAR.wp < ROUTE.length - 1) CAR.wp++;
     let d = Math.atan2(dx, dz) - CAR.heading; d = Math.atan2(Math.sin(d), Math.cos(d));
     const last = CAR.wp === ROUTE.length - 1;
-    return { steer: Math.max(-1, Math.min(1, -d * 2.2)), gas: last ? Math.min(0.7, L / 12) : Math.abs(d) > 0.5 ? 0.45 : 0.85 };
+    return { steer: Math.max(-1, Math.min(1, -d * 2.0)), gas: last ? Math.min(0.7, L / 12) : Math.abs(d) > 0.5 ? 0.5 : 0.9, d };
   }
+  const MAX_ROAD = 6.5, MAX_GRASS = 3.5;   // m/s (about 14 / 8 mph): slow and friendly
   function updateCar(dt, inGas, inSteer, brake) {
     let gas = inGas, steer = inSteer;
-    if (CAR.auto && !inGas && !inSteer) ({ gas, steer } = carAuto());
-    const maxSp = onRoad(car.position.x, car.position.z) ? 11 : 5;
-    let target = gas * maxSp; if (brake || DUCK.hold) target = 0;
-    const rate = brake || DUCK.hold ? 4 : gas ? 1.1 : 1.6;
+    const manual = Math.abs(inSteer) > 0.1;
+    if (CAR.auto && !inGas && !manual && !brake) ({ gas, steer } = carAuto());
+    else {   // lane assist: with no steering input the car gently steers back along the road (toward the clinic while it's time for work)
+      const assist = G.step === "drive" && Math.hypot(car.position.x - ROUTE[CAR.wp][0], car.position.z - ROUTE[CAR.wp][1]) < 40 ? carAuto().steer : roadAssist();
+      steer = manual ? inSteer * 0.8 + assist * 0.2 : assist * 0.9;
+    }
+    let maxSp = onRoad(car.position.x, car.position.z) ? MAX_ROAD : MAX_GRASS;
+    if (Math.abs(CAR.steer) > 0.25) maxSp = Math.min(maxSp, 3.8);   // slow down in turns automatically
+    let target = gas * maxSp;
+    if (DUCK.hold) target = Math.min(target, Math.max(0, (42 - car.position.z) * 0.5));   // ease to a stop before the ducks
+    if (brake) target = 0;
+    const rate = brake ? 2.5 : DUCK.hold ? 2 : target > CAR.speed ? 0.6 : 1.0;
     CAR.speed += (target - CAR.speed) * Math.min(1, dt * rate);
-    CAR.steer += (steer - CAR.steer) * Math.min(1, dt * 6);
-    CAR.heading -= CAR.steer * 1.5 * dt * Math.max(-1, Math.min(1, CAR.speed / 3));
+    CAR.steer += (steer - CAR.steer) * Math.min(1, dt * 3);   // soft steering; returns to centre by itself
+    CAR.heading -= CAR.steer * 1.1 * dt * Math.max(-1, Math.min(1, CAR.speed / 2.5));
     const nx = car.position.x + Math.sin(CAR.heading) * CAR.speed * dt, nz = car.position.z + Math.cos(CAR.heading) * CAR.speed * dt;
     const [cx, cz] = collide(nx, nz, 1.25);
-    if (Math.hypot(cx - nx, cz - nz) > 0.01) { CAR.speed *= 0.5; if (CAR.bonkT <= 0 && Math.abs(CAR.speed) > 1.5) { sound("bonk"); CAR.bonkT = 0.8; toast("Bonk! Oops! 🙈"); } }
+    if (Math.hypot(cx - nx, cz - nz) > 0.01) { CAR.speed *= 0.7; if (CAR.bonkT <= 0 && Math.abs(CAR.speed) > 3) { sound("boing"); CAR.bonkT = 1.2; toast("Boing! Oops! 🙈"); } }
     car.position.x = Math.max(-75, Math.min(75, cx)); car.position.z = Math.max(-25, Math.min(115, cz));
-    car.rotation.y = CAR.heading; CAR.bonkT -= dt;
-    G.wheel.rotation.z = -CAR.steer * 1.6 * -1; G.carWheels.forEach((w) => (w.children[0].rotation.x += CAR.speed * dt * 2.6));
-    // treats + cones
-    BONES.forEach((b) => { if (b.visible && Math.hypot(b.position.x - car.position.x, b.position.z - car.position.z) < 2.4) { b.visible = false; G.treats++; sound("treat"); hud(); toast(`🦴 Yum! You got a dog treat! (${G.treats})`); } });
-    CONES.forEach((c) => { if (!c.userData.hit && Math.hypot(c.position.x - car.position.x, c.position.z - car.position.z) < 1.6) { c.userData.hit = true; CAR.speed *= 0.35; sound("bonk"); toast("Bonk! Watch out for the cones 🚧"); tween(0.4, (k) => (c.rotation.z = 1.5 * k)); } });
+    car.rotation.y = CAR.heading; CAR.bonkT -= dt; G.maxSpeed = Math.max(G.maxSpeed || 0, CAR.speed); if (!onRoad(car.position.x, car.position.z)) G.offRoadT = (G.offRoadT || 0) + dt;
+    G.wheel.rotation.z = CAR.steer * 1.6; G.carWheels.forEach((w) => (w.children[0].rotation.x += CAR.speed * dt * 2.6));
+    BONES.forEach((b) => { if (b.visible && Math.hypot(b.position.x - car.position.x, b.position.z - car.position.z) < 2.8) { b.visible = false; G.treats++; sound("treat"); hud(); toast(`🦴 Yum! You got a dog treat! (${G.treats})`); } });
+    CONES.forEach((c) => { const dx = c.position.x - car.position.x, dz = c.position.z - car.position.z, L = Math.hypot(dx, dz);
+      if (L < 1.8 && !c.userData.moving) { c.userData.moving = true; sound("boing"); G.cones = (G.cones || 0) + 1; toast("Boop! The cone wobbled out of the way 😄"); const sx = c.position.x, sz = c.position.z, ux = dx / (L || 1), uz = dz / (L || 1);
+        tween(0.6, (k) => { c.position.x = sx + ux * 1.8 * k; c.position.z = sz + uz * 1.8 * k; c.rotation.z = Math.sin(k * Math.PI * 3) * 0.3 * (1 - k); }, () => (c.userData.moving = false)); } });
+    routeArrows.visible = G.step === "drive";
     engine(true, CAR.speed);
     G.carRadioScreen.material = mat(CAR.radio ? "#7dffb0" : "#333", CAR.radio ? { emissive: "#3fcf8e", emissiveIntensity: 0.8 } : undefined);
     updateDucks(dt);
   }
   function updateDucks(dt) {
-    if (DUCK.state === "none" && G.step === "drive" && car.position.x > 40 && car.position.z > 17 && car.position.z < 34) { DUCK.x = 50.5;
+    if (DUCK.state === "none" && G.step === "drive" && car.position.x > 40 && car.position.z > 26 && car.position.z < 38) { DUCK.x = 51.5;
       DUCK.state = "crossing"; DUCKS.forEach((d) => (d.visible = true)); sound("quack"); setPrompt("🦆 Ducks are crossing the road! Stop and wait for them 🛑");
     }
     if (DUCK.state === "crossing") {
-      DUCK.x -= dt * 1.4; DUCKS.forEach((d, i) => { d.position.x = DUCK.x + i * 0.7; d.position.y = Math.abs(Math.sin(G.time * 10 + i)) * 0.05; });
-      DUCK.hold = car.position.z > 30 && car.position.z < 44.3 && DUCK.x > 40.5 && Math.abs(car.position.x - 46) < 5;   // forgiving: the car gently stops by itself
+      DUCK.x -= dt * (G.duckSpeed || 1.7); DUCKS.forEach((d, i) => { d.position.x = DUCK.x + i * 0.7; d.position.y = Math.abs(Math.sin(G.time * 10 + i)) * 0.05; });
+      DUCK.hold = car.position.z > 24 && car.position.z < 44 && DUCK.x > 38.6 && Math.abs(car.position.x - 46) < 6;   // the car slows and stops by itself
       if (Math.random() < dt * 1.2) sound("quack");
-      if (DUCK.x < 37) { DUCK.state = "done"; DUCK.hold = false; DUCKS.forEach((d) => (d.visible = false)); addStars(1); toast("Thank you for waiting! The ducks say quack quack! 🦆", 3000); nextPrompt(); }
+      if (DUCK.x < 38.5) { DUCK.state = "done"; DUCK.hold = false; DUCKS.forEach((d) => (d.visible = false)); addStars(1); toast("Thank you for waiting! The ducks say quack quack! 🦆", 3000); nextPrompt(); }
     }
   }
 
@@ -1460,22 +1519,25 @@ CD.registerCareer({
   function enterCar() {
     if (G.step === "wake" || G.step === "breakfast") { toast("🚗 Get ready and eat breakfast first!"); return; }
     G.mode = "drive"; G.driving = true; CAR.box.off = true; cancelAuto(); hold(null); sound("doorCreak");
-    $("dash").hidden = false; $("joy").hidden = !isTouch; nextPrompt(); updateDash();
+    $("dash").hidden = false; $("pads").hidden = !isTouch; G.cruise = false; G.padSteer = 0; refreshUI(); nextPrompt(); updateDash();
     if (G.step === "toCar") { G.step = "drive"; nextPrompt(); }
   }
   function exitCar() {
     if (Math.abs(CAR.speed) > 1) { toast("Stop the car first 🛑"); return; }
-    CAR.speed = 0; G.mode = "walk"; G.driving = false; engine(false); $("dash").hidden = true; sound("doorCreak");
+    CAR.speed = 0; G.mode = "walk"; G.driving = false; G.cruise = false; engine(false); $("dash").hidden = true; refreshUI(); sound("doorCreak");
     const h = CAR.heading, ox = car.position.x - Math.cos(h) * 1.9, oz = car.position.z + Math.sin(h) * 1.9;
     [player.x, player.z] = collide(ox, oz); player.eye = 1.5; player.pitch = -0.05; player.yaw = h + Math.PI;
     const sw = Math.abs(Math.sin(h)) > 0.7; Object.assign(CAR.box, { x1: car.position.x - (sw ? 2.05 : 1.05), x2: car.position.x + (sw ? 2.05 : 1.05), z1: car.position.z - (sw ? 1.05 : 2.05), z2: car.position.z + (sw ? 1.05 : 2.05), off: false });
     nextPrompt();
   }
-  function updateDash() { $("radioBtn").classList.toggle("off", !CAR.radio); $("autoBtn").classList.toggle("on", CAR.auto); }
+  function updateDash() { $("radioBtn").classList.toggle("off", !CAR.radio); $("autoBtn").classList.toggle("on", CAR.auto); $("autoBtn").classList.toggle("pulse", !CAR.auto); $("padGo").classList.toggle("on", !!G.cruise); }
   $("radioBtn").onclick = () => { CAR.radio = !CAR.radio; sound("radioClick"); updateDash(); toast(CAR.radio ? "📻 Car radio on" : "📻 Car radio off"); };
-  $("autoBtn").onclick = () => { CAR.auto = !CAR.auto; updateDash(); toast(CAR.auto ? "🧭 Auto-drive on: the car steers to the clinic. Use the joystick any time!" : "🧭 Auto-drive off: you drive!", 3200); };
+  $("autoBtn").onclick = () => { CAR.auto = !CAR.auto; if (CAR.auto) G.cruise = false; updateDash(); toast(CAR.auto ? "🧭 Auto-drive on: the car steers to the clinic. Use the joystick any time!" : "🧭 Auto-drive off: you drive!", 3200); };
   $("exitBtn").onclick = exitCar;
-  const brakeBtn = $("brakeBtn"); brakeBtn.addEventListener("pointerdown", () => (G.brake = true)); ["pointerup", "pointerleave", "pointercancel"].forEach((e) => brakeBtn.addEventListener(e, () => (G.brake = false)));
+  // big on-screen driving pads: hold ◀ ▶ to steer, tap GO to cruise, STOP to stop (hold = brake)
+  const pad = (id, down, up) => { const b = $(id); b.addEventListener("pointerdown", (e) => { e.preventDefault(); b.classList.add("down"); down(); }); ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => b.addEventListener(ev, () => { b.classList.remove("down"); up && up(); })); };
+  pad("padL", () => (G.padSteer = -1), () => (G.padSteer = 0)); pad("padR", () => (G.padSteer = 1), () => (G.padSteer = 0));
+  pad("padGo", () => { G.cruise = true; sound("pop"); updateDash(); }); pad("padStop", () => { G.cruise = false; G.brake = true; CAR.auto = false; updateDash(); }, () => (G.brake = false));
   function checkArrive() {
     if (G.step === "drive" && Math.hypot(car.position.x - PARK.x, car.position.z - PARK.z) < 3 && Math.abs(CAR.speed) < 4.5) {
       G.step = "toClinic"; CAR.speed = 0; CAR.auto = false; addStars(1); sound("yay");
@@ -1654,7 +1716,7 @@ CD.registerCareer({
     const exam = G.mode === "exam";
     $("toolbar").hidden = !(exam && G.ps === "exam" && !G.busy);
     $("clues").hidden = !(exam && ["exam", "diagnose", "treat", "treating"].includes(G.ps));
-    $("joy").hidden = !isTouch || !G.started || exam || G.mode === "swing" || G.mode === "cutscene";
+    $("joy").hidden = !isTouch || !G.started || exam || G.mode === "swing" || G.mode === "cutscene" || G.mode === "drive";
     G.labels.forEach((l) => (l.visible = !exam));
   }
 
@@ -1864,10 +1926,11 @@ CD.registerCareer({
       if (!panelOpen) {
         if (keys.KeyW || keys.ArrowUp) gas += 1; if (keys.KeyS || keys.ArrowDown) gas -= 0.6;
         if (keys.KeyA || keys.ArrowLeft) steer -= 1; if (keys.KeyD || keys.ArrowRight) steer += 1;
-        gas -= joy.y; steer += joy.x;
+        gas -= joy.y; steer += joy.x + (G.padSteer || 0); if (G.cruise) gas = Math.max(gas, 0.85);
       }
       updateCar(dt, panelOpen ? 0 : Math.max(-0.6, Math.min(1, gas)), panelOpen ? 0 : Math.max(-1, Math.min(1, steer)), G.brake || keys.Space || panelOpen);
       checkArrive();
+      if ((G.dashT = (G.dashT || 0) - dt) <= 0) { G.dashT = 0.3; const pr = $("prompt").getBoundingClientRect(); $("dashTop").style.top = Math.round((pr.height ? pr.bottom : 60) + 8) + "px"; }   // keep the button row just under the prompt
       CAR.look *= Math.pow(0.4, dt);
       car.updateMatrixWorld(true); const eye = car.localToWorld(tmpV.set(0, 1.66, -0.4));
       player.x = eye.x; player.z = eye.z; player.eye = eye.y; player.yaw = CAR.heading + Math.PI + CAR.look;
@@ -2024,7 +2087,7 @@ CD.registerCareer({
       let free = 0; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, tx = px + Math.sin(a) * 0.3, tz = pz + Math.cos(a) * 0.3, [cx, cz] = collide(tx, tz); if (Math.hypot(cx - px, cz - pz) > 0.12) free++; }
       if (!free) { trapped++; bad.push([+px.toFixed(2), +pz.toFixed(2)]); } }
     return { pts, trapped, bad: bad.slice(0, 8) }; }; G.inSolid = () => colliders.some((b) => !b.off && player.x > b.x1 - 0.2 && player.x < b.x2 + 0.2 && player.z > b.z1 - 0.2 && player.z < b.z2 + 0.2); G.player = player; G.CAR = CAR; G.car = car; G.ps_ = () => G.ps;
-  G.renderInfo = () => renderer.info.render; G.event = startEvent; G.pick = pick; G.audio = A; G.duck_ = () => DUCK.state; G.cur_ = () => cur() && cur().p.name;
+  G.renderInfo = () => renderer.info.render; G.event = startEvent; G.pick = pick; G.audio = A; G.wheelPos = () => { const v = G.wheel.getWorldPosition(new THREE.Vector3()); camera.updateMatrixWorld(true); v.project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; }; G.duck_ = () => DUCK.state; G.cur_ = () => cur() && cur().p.name;
   G.pawPos = () => PAWS.filter((s) => s.visible).map((s) => [s.position.x, s.position.z]);
 })();
 
