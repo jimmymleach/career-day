@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#7c5cff">
+<title>Career Day</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  font-family: "Trebuchet MS", "Comic Sans MS", "Chalkboard SE", "Arial Rounded MT Bold", system-ui, sans-serif;
+  background: #ffe9b8; color: #2d2a4a; user-select: none; -webkit-user-select: none;
+  touch-action: manipulation;
+}
+#app { position: fixed; inset: 0; overflow: hidden; }
+.scene { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+  padding: 64px 16px 16px; overflow-y: auto; animation: fadeIn .35s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: scale(.98);} to { opacity: 1; transform: none; } }
+h1, h2, h3 { margin: .2em 0; text-align: center; }
+h1 { font-size: clamp(40px, 9vw, 96px); }
+h2 { font-size: clamp(26px, 5vw, 48px); }
+h3 { font-size: clamp(20px, 3.6vw, 32px); }
+p, .big-text { font-size: clamp(18px, 3vw, 26px); line-height: 1.4; text-align: center; margin: .3em 0; }
+
+/* Buttons: big and friendly */
+.btn { font: inherit; font-weight: bold; font-size: clamp(20px, 3.4vw, 30px); border: none; cursor: pointer;
+  background: #7c5cff; color: white; padding: 14px 28px; border-radius: 22px; min-height: 64px;
+  box-shadow: 0 6px 0 #4b33b8; transition: transform .1s; margin: 8px; }
+.btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #4b33b8; }
+.btn.green { background: #2fbf71; box-shadow: 0 6px 0 #1d8a50; }
+.btn.orange { background: #ff8a3d; box-shadow: 0 6px 0 #c45e1b; }
+.btn.pink { background: #ff5fa2; box-shadow: 0 6px 0 #c23774; }
+.btn[disabled] { background: #b9b4cc; box-shadow: 0 6px 0 #8d88a3; cursor: default; }
+.btn.pulse:not([disabled]) { animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { transform: scale(1.06); } }
+
+#hud { position: fixed; top: 8px; left: 8px; right: 8px; display: flex; justify-content: space-between;
+  align-items: center; pointer-events: none; z-index: 50; }
+.hud-btn { pointer-events: auto; font-size: 28px; width: 52px; height: 52px; border-radius: 50%;
+  border: 3px solid #fff; background: rgba(255,255,255,.85); cursor: pointer; }
+.hud-pill { background: #fff; border-radius: 30px; padding: 6px 18px; font-size: 26px; font-weight: bold;
+  box-shadow: 0 3px 0 rgba(0,0,0,.15); }
+#toast { position: fixed; left: 50%; bottom: 20px; pointer-events: none; opacity: .95; transform: translateX(-50%); background: #2d2a4a; color: #fff;
+  font-size: clamp(18px, 3vw, 26px); padding: 14px 26px; border-radius: 20px; z-index: 100; text-align: center;
+  max-width: 90vw; animation: fadeIn .3s; }
+
+/* Title */
+.title-scene { background: linear-gradient(#8fd3ff, #c6f0ff 60%, #9be27a 60%, #7cd35c); justify-content: center; }
+.title-scene h1 { color: #fff; text-shadow: 0 6px 0 #7c5cff, 0 10px 20px rgba(0,0,0,.2); letter-spacing: 2px; }
+.title-scene .sun { position: absolute; top: 60px; right: 8%; font-size: 90px; animation: spin 20s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.name-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin: 10px; }
+.name-row input { font: inherit; font-size: clamp(22px, 3.5vw, 30px); padding: 12px 18px; border-radius: 18px;
+  border: 4px solid #7c5cff; width: min(320px, 70vw); text-align: center; }
+.title-parade { font-size: clamp(40px, 8vw, 70px); margin: 10px; }
+.title-parade span { display: inline-block; animation: bob 1.6s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-12px); } }
+
+/* Career picker */
+.picker-scene { background: #fff3d6; }
+.career-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px;
+  width: min(1000px, 100%); margin-top: 10px; }
+.career-card { background: #fff; border-radius: 26px; padding: 16px 10px; text-align: center; cursor: pointer;
+  border: 5px solid var(--c, #7c5cff); box-shadow: 0 8px 0 var(--c, #7c5cff); position: relative;
+  font: inherit; color: inherit; transition: transform .15s; }
+.career-card:active { transform: translateY(5px); }
+.career-card .emoji { font-size: clamp(56px, 10vw, 90px); display: block; }
+.career-card .name { font-size: clamp(20px, 3vw, 28px); font-weight: bold; }
+.career-card .tag { display: inline-block; margin-top: 6px; padding: 4px 12px; border-radius: 12px; font-size: 18px;
+  background: #2fbf71; color: #fff; font-weight: bold; }
+.career-card.locked { opacity: .65; filter: grayscale(.5); }
+.career-card.locked .tag { background: #9b96b0; }
+
+/* Morning: bedroom */
+.bedroom { background: #ffd9a0; transition: background 1s; padding-top: 70px; }
+.bedroom.dark { background: #5b4a8a; color: #fff; }
+.room-row { display: flex; gap: 24px; align-items: flex-end; justify-content: center; flex-wrap: wrap; margin: 10px 0; }
+.window { width: clamp(150px, 26vw, 240px); height: clamp(130px, 22vw, 200px); background: linear-gradient(#7ecbff, #c7ecff);
+  border: 10px solid #fff; border-radius: 12px; position: relative; overflow: hidden; cursor: pointer; }
+.window .sunpeek { position: absolute; top: 12px; right: 18px; font-size: 54px; }
+.curtain { position: absolute; top: 0; bottom: 0; width: 51%; background: repeating-linear-gradient(90deg, #d0457a 0 14px, #e8669a 14px 28px);
+  transition: transform 1s ease; }
+.curtain.l { left: 0; } .curtain.r { right: 0; }
+.window.open .curtain.l { transform: translateX(-85%); } .window.open .curtain.r { transform: translateX(85%); }
+.alarm { font-size: clamp(70px, 12vw, 110px); cursor: pointer; background: none; border: none; }
+.alarm.ringing { animation: shake .15s infinite; }
+@keyframes shake { 25% { transform: rotate(-12deg);} 75% { transform: rotate(12deg);} }
+.wardrobe { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.outfit { font: inherit; font-size: 20px; font-weight: bold; padding: 10px 14px; border-radius: 18px; border: 4px solid transparent;
+  background: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; min-width: 96px; }
+.outfit .shirt { width: 64px; height: 64px; }
+.outfit.sel { border-color: #2d2a4a; transform: scale(1.08); }
+.blanket { position: absolute; left: -5%; right: -5%; bottom: -40px; height: 90px; border-radius: 50% 50% 0 0;
+  background: repeating-linear-gradient(45deg, #6cc3ff 0 20px, #8ad3ff 20px 40px); pointer-events: none; }
+.checklist { background: #fff; color: #2d2a4a; border-radius: 20px; padding: 10px 20px; font-size: clamp(18px, 2.8vw, 24px);
+  margin: 6px; box-shadow: 0 4px 0 rgba(0,0,0,.1); }
+.checklist div { margin: 4px 0; }
+.checklist .done { text-decoration: line-through; opacity: .6; }
+
+/* Breakfast */
+.kitchen { background: repeating-linear-gradient(0deg, #fff7e6 0 40px, #ffefd0 40px 80px); }
+.table { background: #c98b55; border-radius: 30px; padding: 16px; width: min(760px, 96%);
+  box-shadow: inset 0 -10px 0 #a76c3c; display: flex; flex-direction: column; align-items: center; }
+.plate { width: clamp(170px, min(34vw, 30vh), 290px); height: clamp(170px, min(34vw, 30vh), 290px); border-radius: 50%; background: #fff;
+  box-shadow: inset 0 0 0 16px #eef3ff, 0 6px 0 rgba(0,0,0,.15); display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: center; align-content: center; gap: 4px; }
+.plate .food { font-size: clamp(48px, 8vw, 72px); cursor: pointer; transition: transform .3s, opacity .3s; background: none; border: none; }
+.plate .food.eaten { transform: scale(0); opacity: 0; }
+.pantry { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 12px 0; }
+.pantry button { font-size: clamp(36px, min(6vw, 7vh), 56px); background: #fff; border: none; border-radius: 18px; width: 1.6em; height: 1.6em;
+  cursor: pointer; box-shadow: 0 4px 0 rgba(0,0,0,.15); }
+.pantry button:disabled { opacity: .3; }
+
+/* Drive */
+.drive-scene { padding: 0; background: #8fd3ff; }
+.drive-scene canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+.drive-ui { position: absolute; bottom: 14px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 14px;
+  pointer-events: none; }
+.drive-ui .btn { pointer-events: auto; font-size: 40px; min-width: 110px; min-height: 90px; }
+.drive-msg { position: absolute; top: 118px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,.92);
+  border-radius: 20px; padding: 10px 22px; font-size: clamp(18px, 3vw, 28px); font-weight: bold; text-align: center; max-width: 92vw; }
+.stop-btn { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); font-size: 40px !important;
+  background: #e53935 !important; box-shadow: 0 8px 0 #9a1f1c !important; border-radius: 50% !important; width: 150px; height: 150px; margin: 0; }
+
+/* Appointment book */
+.book-scene { background: #b8e4c9; }
+.book { display: flex; background: #8a5a3b; padding: 12px; border-radius: 22px; width: min(980px, 100%); gap: 6px;
+  box-shadow: 0 10px 0 #5e3a24; flex-wrap: wrap; }
+.page { flex: 1 1 300px; background: #fffdf3; border-radius: 12px; padding: 14px 18px;
+  background-image: repeating-linear-gradient(#fffdf3 0 38px, #cfe3ff 38px 40px); }
+.appt { display: flex; align-items: center; gap: 10px; padding: 6px 4px; font-size: clamp(17px, 2.6vw, 23px);
+  border-bottom: 2px dashed #e6d9b8; }
+.appt .pet { font-size: clamp(36px, 6vw, 50px); }
+.appt .time { font-weight: bold; color: #7c5cff; min-width: 74px; }
+.appt .who { flex: 1; }
+.appt.next { background: #fff2a8; border-radius: 12px; }
+.appt .stamp { font-size: 30px; }
+.appt.done .who { text-decoration: line-through; opacity: .6; }
+
+/* Exam */
+.exam-scene { background: linear-gradient(#e3f4ff 0 65%, #cfe7f5 65%); }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-bottom: 6px; }
+.steps span { background: #fff; border-radius: 14px; padding: 4px 12px; font-size: clamp(14px, 2.2vw, 19px); font-weight: bold; opacity: .5; }
+.steps span.on { background: #7c5cff; color: #fff; opacity: 1; }
+.steps span.done { background: #2fbf71; color: #fff; opacity: 1; }
+.meet { display: flex; gap: 18px; align-items: flex-end; justify-content: center; flex-wrap: wrap; margin: 12px 0; }
+.char { font-size: clamp(90px, 16vw, 150px); line-height: 1; }
+.pet-big { font-size: clamp(100px, 18vw, 170px); line-height: 1; display: inline-block; }
+.pet-big.happy { animation: hop .5s ease-in-out 4; }
+@keyframes hop { 50% { transform: translateY(-30px) rotate(-8deg); } }
+.bubble { background: #fff; border-radius: 26px; padding: 16px 22px; font-size: clamp(19px, 3vw, 27px); line-height: 1.4;
+  max-width: min(640px, 92vw); position: relative; box-shadow: 0 5px 0 rgba(0,0,0,.1); margin: 8px; }
+.bubble .speaker { font-weight: bold; color: #7c5cff; display: block; }
+.read-btn { font-size: 22px; border: none; background: #efeaff; border-radius: 12px; padding: 4px 10px; cursor: pointer; margin-left: 6px; }
+.exam-area { display: flex; gap: 18px; width: min(1000px, 100%); flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+.exam-table { flex: 1 1 340px; display: flex; flex-direction: column; align-items: center; }
+.table-top { background: #b7c4d1; border-radius: 20px; width: 90%; height: 26px; box-shadow: 0 8px 0 #8d9aa8; margin-top: -10px; }
+.tools { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 16px; width: min(440px, 100%); }
+.tool { font: inherit; font-weight: bold; font-size: clamp(17px, 2.6vw, 22px); background: #fff; border: 4px solid #7c5cff;
+  border-radius: 20px; padding: 10px; cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 72px; color: #2d2a4a; }
+.tool .ti { font-size: 40px; }
+.tool.done { border-color: #2fbf71; background: #e6fff0; }
+.clipboard { flex: 0 1 330px; background: #c98b55; border-radius: 16px; padding: 22px 12px 12px; position: relative; min-height: 260px; }
+.clipboard::before { content: ""; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 90px; height: 26px;
+  background: #9aa5b1; border-radius: 8px; }
+.clipboard .paper { background: #fff; border-radius: 8px; padding: 10px 14px; min-height: 220px; font-size: clamp(16px, 2.4vw, 20px); }
+.clue { margin: 6px 0; padding: 6px 8px; border-radius: 10px; background: #f4f1ff; animation: fadeIn .4s; }
+.clue.warn { background: #ffe7e0; }
+.overlay { position: fixed; inset: 0; background: rgba(45,42,74,.55); display: flex; align-items: center; justify-content: center;
+  z-index: 60; padding: 12px; animation: fadeIn .2s; }
+.panel { background: #fff; border-radius: 28px; padding: 20px; width: min(560px, 96vw); text-align: center; max-height: 94vh; overflow-y: auto; }
+.thermo { width: 46px; height: 220px; margin: 10px auto; background: #eee; border-radius: 23px; position: relative; border: 4px solid #ccc; overflow: hidden; }
+.thermo .fill { position: absolute; bottom: 0; left: 0; right: 0; height: 0; background: linear-gradient(#ff5e5e, #ff9a3d); transition: height 1.6s ease-out; }
+.heart-btn { font-size: 110px; background: none; border: none; cursor: pointer; animation: beat .8s infinite; }
+@keyframes beat { 15% { transform: scale(1.18);} 30% { transform: scale(1);} 45% { transform: scale(1.12);} 60% { transform: scale(1);} }
+.scale-wrap { display: flex; flex-direction: column; align-items: center; margin: 10px; }
+.scale-pet { font-size: 90px; transition: transform .5s; }
+.scale-plate { width: 220px; height: 30px; background: #9aa5b1; border-radius: 10px; }
+.scale-read { background: #2d2a4a; color: #6dff9e; font-family: monospace; font-size: 40px; padding: 6px 18px; border-radius: 10px; margin-top: 8px; min-width: 170px; }
+.magnify { font-size: 100px; position: relative; display: inline-block; }
+.magnify .zoom { position: absolute; font-size: 60px; right: -30px; bottom: -10px; animation: bob 1s infinite; }
+.reading { font-size: clamp(22px, 3.6vw, 30px); font-weight: bold; margin: 8px; }
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; width: min(900px, 100%); margin-top: 10px; }
+.choice { font: inherit; background: #fff; border: 5px solid #7c5cff; border-radius: 24px; padding: 14px; cursor: pointer;
+  font-size: clamp(19px, 2.8vw, 25px); font-weight: bold; color: #2d2a4a; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.choice .ce { font-size: clamp(50px, 8vw, 70px); }
+.choice.wrong { animation: wobble .4s; border-color: #ff8a3d; opacity: .55; }
+@keyframes wobble { 20% { transform: translateX(-10px);} 40% { transform: translateX(10px);} 60% { transform: translateX(-6px);} 80% { transform: translateX(6px);} }
+.choice.right { border-color: #2fbf71; background: #e6fff0; transform: scale(1.05); }
+.hint { background: #fff6c8; border-radius: 18px; padding: 10px 16px; font-size: clamp(18px, 2.8vw, 24px); margin: 10px; max-width: 760px; animation: fadeIn .3s; }
+.floaty { position: fixed; pointer-events: none; font-size: 44px; z-index: 80; animation: floatUp 1.8s ease-out forwards; }
+@keyframes floatUp { to { transform: translateY(-260px) scale(1.4); opacity: 0; } }
+.confetti { position: fixed; top: -20px; width: 12px; height: 18px; z-index: 79; pointer-events: none; animation: fall 2.4s linear forwards; }
+@keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
+.fact { background: #e2f6ff; border-radius: 18px; padding: 10px 16px; font-size: clamp(17px, 2.6vw, 22px); margin: 8px; max-width: 700px; }
+
+/* Summary */
+.summary-scene { background: linear-gradient(#ffb3d1, #ffe2a8); }
+.badge { font-size: clamp(70px, min(14vw, 14vh), 130px); line-height: 1.1; animation: bob 1.5s infinite; }
+.helped { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 10px; }
+.helped div { background: #fff; border-radius: 20px; padding: 8px 12px; text-align: center; font-size: 18px; font-weight: bold; }
+.helped .e { font-size: 50px; display: block; }
+.stars-big { font-size: clamp(30px, 6vw, 52px); letter-spacing: 2px; margin: 6px; }
+.row { display: flex; flex-wrap: wrap; justify-content: center; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="hud">
+  <button id="homeBtn" class="hud-btn" aria-label="Home">🏠</button>
+  <div id="starCount" class="hud-pill" hidden>⭐ <span>0</span></div>
+  <button id="muteBtn" class="hud-btn" aria-label="Sound on or off">🔊</button>
+</div>
+<div id="toast" hidden></div>
+<!-- Core engine, shared scene types, then one file per career -->
+<script>
+/* Career Day — core engine.
+   Careers register themselves with CD.registerCareer({...}).
+   Scene types (morning, drive, clinic, summary...) register with CD.registerScene(type, renderFn).
+   A career is just data: a list of scenes, each with a type + settings. */
+(function () {
+  const CD = (window.CD = {});
+  CD.careers = [];
+  CD.sceneTypes = {};
+  CD.state = { name: "", stars: 0, career: null, sceneIndex: 0, results: [], color: "#7c5cff" };
+  const params = new URLSearchParams(location.search);
+  CD.speed = params.has("fast") ? 4 : 1; // ?fast speeds up timers (used for testing)
+
+  CD.registerCareer = (c) => CD.careers.push(c);
+  CD.registerScene = (type, fn) => (CD.sceneTypes[type] = fn);
+
+  /* Tiny DOM helper: el('div.cls', {attrs/on...}, children...) */
+  CD.el = function (sel, props, ...kids) {
+    const [tag, ...cls] = sel.split(".");
+    const n = document.createElement(tag || "div");
+    if (cls.length) n.className = cls.join(" ");
+    if (props) for (const k in props) {
+      const v = props[k];
+      if (k.startsWith("on") && typeof v === "function") n.addEventListener(k.slice(2), v);
+      else if (k === "style" && typeof v === "object") Object.assign(n.style, v);
+      else if (k === "html") n.innerHTML = v;
+      else if (v !== false && v != null) n.setAttribute(k, v === true ? "" : v);
+    }
+    for (const kid of kids.flat()) if (kid != null && kid !== false)
+      n.appendChild(typeof kid === "string" || typeof kid === "number" ? document.createTextNode(kid) : kid);
+    return n;
+  };
+  CD.wait = (ms) => new Promise((r) => setTimeout(r, ms / CD.speed));
+  CD.drName = () => CD.state.name || "Awesome";
+
+  /* Scenes */
+  CD.show = function (node) {
+    const app = document.getElementById("app");
+    if (CD._cleanup) { try { CD._cleanup(); } catch (e) {} CD._cleanup = null; }
+    app.innerHTML = "";
+    app.appendChild(node);
+    document.querySelectorAll(".overlay").forEach((o) => o.remove());
+    document.getElementById("toast").hidden = true;
+    if (window.speechSynthesis) speechSynthesis.cancel();
+  };
+  CD.onLeave = (fn) => (CD._cleanup = fn);
+
+  CD.startCareer = function (id) {
+    const c = CD.careers.find((x) => x.id === id);
+    CD.state.career = c; CD.state.sceneIndex = 0; CD.state.stars = 0; CD.state.results = [];
+    CD.updateStars();
+    CD.runScene();
+  };
+  CD.runScene = function () {
+    const c = CD.state.career;
+    const s = c.scenes[CD.state.sceneIndex];
+    if (!s) return CD.home();
+    CD.sceneTypes[s.type](s, c, () => { CD.state.sceneIndex++; CD.runScene(); });
+  };
+
+  /* Stars */
+  CD.addStars = function (n, fromEl) {
+    CD.state.stars += n; CD.updateStars();
+    for (let i = 0; i < n; i++) setTimeout(() => CD.floaty("⭐", fromEl), i * 200);
+    CD.sound("star");
+  };
+  CD.updateStars = function () {
+    const pill = document.getElementById("starCount");
+    pill.hidden = !CD.state.career;
+    pill.querySelector("span").textContent = CD.state.stars;
+  };
+
+  /* Effects */
+  CD.floaty = function (txt, fromEl) {
+    const r = fromEl ? fromEl.getBoundingClientRect() : { left: innerWidth / 2, top: innerHeight / 2, width: 0, height: 0 };
+    const f = CD.el("div.floaty", { style: { left: r.left + r.width / 2 - 22 + (Math.random() * 60 - 30) + "px", top: r.top + r.height / 2 - 22 + "px" } }, txt);
+    document.body.appendChild(f); setTimeout(() => f.remove(), 1900);
+  };
+  CD.confetti = function (n = 60) {
+    const colors = ["#ff5fa2", "#7c5cff", "#2fbf71", "#ffcf3d", "#3db8ff", "#ff8a3d"];
+    for (let i = 0; i < n; i++) {
+      const c = CD.el("div.confetti", { style: { left: Math.random() * 100 + "vw", background: colors[i % colors.length],
+        animationDelay: Math.random() * 0.6 + "s", borderRadius: i % 2 ? "50%" : "3px" } });
+      document.body.appendChild(c); setTimeout(() => c.remove(), 3200);
+    }
+  };
+  CD.toast = function (msg, ms = 2200) {
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(CD._toastT); CD._toastT = setTimeout(() => (t.hidden = true), ms);
+  };
+
+  /* Read-aloud (uses the device's built-in voice, if any) */
+  CD.say = function (text) {
+    if (!window.speechSynthesis || CD.muted) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text.replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, ""));
+    u.rate = 0.95; u.pitch = 1.1; speechSynthesis.speak(u);
+  };
+  CD.readBtn = (text) => CD.el("button.read-btn", { "aria-label": "Read to me", onclick: (e) => { e.stopPropagation(); CD.say(text); } }, "🔈");
+  CD.bubble = (speaker, text) => CD.el("div.bubble", null, CD.el("span.speaker", null, speaker, CD.readBtn(text)), text);
+
+  /* Simple sounds made with the Web Audio API (no files needed) */
+  CD.muted = false;
+  let ac = null;
+  function tone(freq, start, dur, type = "sine", vol = 0.15) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ac.currentTime + start);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + start + dur);
+    o.connect(g).connect(ac.destination); o.start(ac.currentTime + start); o.stop(ac.currentTime + start + dur + 0.05);
+  }
+  CD.sound = function (name) {
+    if (CD.muted) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === "suspended") ac.resume();
+      const S = {
+        click: () => tone(660, 0, 0.08, "triangle", 0.1),
+        pop: () => { tone(500, 0, 0.06, "sine"); tone(900, 0.05, 0.08, "sine"); },
+        yay: () => [523, 659, 784, 1046].forEach((f, i) => tone(f, i * 0.1, 0.25, "triangle", 0.15)),
+        hmm: () => { tone(330, 0, 0.18, "sine", 0.1); tone(294, 0.18, 0.25, "sine", 0.1); },
+        star: () => { tone(1046, 0, 0.1, "triangle", 0.1); tone(1568, 0.08, 0.15, "triangle", 0.1); },
+        alarm: () => [0, 0.15, 0.3, 0.45].forEach((t) => tone(1200, t, 0.08, "square", 0.05)),
+        beep: () => tone(880, 0, 0.12, "sine", 0.12),
+        thump: () => { tone(70, 0, 0.12, "sine", 0.4); tone(60, 0.16, 0.12, "sine", 0.3); },
+        honk: () => { tone(400, 0, 0.2, "sawtooth", 0.06); tone(500, 0, 0.2, "sawtooth", 0.06); },
+        bonk: () => tone(150, 0, 0.2, "triangle", 0.2),
+        munch: () => [0, 0.1, 0.2].forEach((t) => tone(200 + Math.random() * 100, t, 0.06, "square", 0.04)),
+        quack: () => { tone(600, 0, 0.1, "sawtooth", 0.05); tone(450, 0.1, 0.12, "sawtooth", 0.05); },
+      };
+      S[name] && S[name]();
+    } catch (e) {}
+  };
+
+  CD.home = function () {
+    CD.state.career = null; CD.updateStars();
+    CD.sceneTypes.title();
+  };
+
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("muteBtn").onclick = (e) => {
+      CD.muted = !CD.muted; e.currentTarget.textContent = CD.muted ? "🔇" : "🔊";
+      if (CD.muted && window.speechSynthesis) speechSynthesis.cancel();
+    };
+    document.getElementById("homeBtn").onclick = () => {
+      if (!CD.state.career || confirm("Go back to the start? Your day will end.")) CD.home();
+    };
+    // click sound for every button
+    document.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) CD.sound("click"); });
+  });
+})();
+</script>
+<script>
+/* Career Day — shared scene types. Any career can reuse these by listing them in its scenes. */
+(function () {
+  const { el } = CD;
+  const shuffle = (a) => a.map((v) => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map((x) => x[1]);
+
+  /* ---------- Title ---------- */
+  CD.registerScene("title", function () {
+    const input = el("input", { placeholder: "Type your name", maxlength: 14, value: CD.state.name, "aria-label": "Your name" });
+    const go = () => { CD.state.name = input.value.trim(); CD.sceneTypes.picker(); };
+    input.addEventListener("keydown", (e) => e.key === "Enter" && go());
+    CD.show(el("div.scene.title-scene", null,
+      el("div.sun", null, "☀️"),
+      el("h1", null, "Career Day"),
+      el("p.big-text", null, "Pick a job and spend a whole day doing it!"),
+      el("div.title-parade", null, ["🐶", "🩺", "🚒", "🏗️", "💼"].map((e, i) => el("span", { style: { animationDelay: i * 0.2 + "s" } }, e))),
+      el("div.name-row", null, input),
+      el("button.btn.pink.pulse", { id: "startBtn", onclick: go }, "Let's Go! ▶")
+    ));
+  });
+
+  /* ---------- Career picker ---------- */
+  CD.registerScene("picker", function () {
+    CD.state.career = null; CD.updateStars();
+    CD.show(el("div.scene.picker-scene", null,
+      el("h2", null, CD.state.name ? `What job will you try today, ${CD.state.name}?` : "What job will you try today?"),
+      el("div.career-grid", null, CD.careers.map((c) =>
+        el("button.career-card" + (c.playable ? "" : ".locked"), {
+          style: { "--c": c.color }, "data-career": c.id,
+          onclick: () => c.playable ? CD.startCareer(c.id) : (CD.sound("hmm"), CD.toast(`${c.emoji} ${c.title} is coming soon!`)),
+        },
+          el("span.emoji", null, c.emoji), el("span.name", null, c.title), el("br"),
+          el("span.tag", null, c.playable ? "Play!" : "Coming soon"))
+      ))
+    ));
+  });
+
+  /* ---------- Wake up in the bedroom ---------- */
+  function shirtSVG(color) {
+    const s = el("span");
+    s.innerHTML = `<svg class="shirt" viewBox="0 0 64 64"><path d="M20 6 L8 14 L2 28 L12 32 L14 26 L14 60 L50 60 L50 26 L52 32 L62 28 L56 14 L44 6 Q32 16 20 6Z" fill="${color}" stroke="#2d2a4a" stroke-width="3" stroke-linejoin="round"/><rect x="36" y="22" width="8" height="8" rx="2" fill="#fff" opacity=".8"/></svg>`;
+    return s.firstChild;
+  }
+  CD.registerScene("wakeUp", function (cfg, career, done) {
+    const tasks = { alarm: false, curtains: false, dressed: false };
+    const list = el("div.checklist");
+    const nextBtn = el("button.btn.green", { id: "nextBtn", disabled: true, onclick: done }, cfg.nextLabel || "Go eat breakfast 🍳");
+    const drawList = () => {
+      list.innerHTML = "";
+      list.append(el("div", { class: tasks.alarm ? "done" : "" }, (tasks.alarm ? "✅" : "⬜") + " Turn off the alarm"),
+        el("div", { class: tasks.curtains ? "done" : "" }, (tasks.curtains ? "✅" : "⬜") + " Open the curtains"),
+        el("div", { class: tasks.dressed ? "done" : "" }, (tasks.dressed ? "✅" : "⬜") + " " + (cfg.dressText || "Get dressed for work")));
+      const all = tasks.alarm && tasks.curtains && tasks.dressed;
+      nextBtn.disabled = !all; nextBtn.classList.toggle("pulse", all);
+    };
+    const ringT = setInterval(() => CD.sound("alarm"), 1300);
+    CD.onLeave(() => clearInterval(ringT));
+    const alarm = el("button.alarm.ringing", { id: "alarm", "aria-label": "Alarm clock", onclick: () => {
+      if (tasks.alarm) return;
+      tasks.alarm = true; clearInterval(ringT); alarm.classList.remove("ringing"); alarm.textContent = "🕖";
+      CD.sound("pop"); CD.toast("Good morning! It's 7 o'clock."); drawList();
+    } }, "⏰");
+    const win = el("div.window", { id: "window", onclick: () => {
+      if (tasks.curtains) return;
+      tasks.curtains = true; win.classList.add("open"); scene.classList.remove("dark");
+      CD.sound("yay"); CD.toast("What a sunny day! ☀️"); drawList();
+    } }, el("div.sunpeek", null, "🌞"), el("div.curtain.l"), el("div.curtain.r"));
+    const wardrobe = el("div.wardrobe", null, cfg.outfits.map((o) => {
+      const b = el("button.outfit", { "data-outfit": o.label, onclick: () => {
+        wardrobe.querySelectorAll(".outfit").forEach((x) => x.classList.remove("sel")); b.classList.add("sel");
+        CD.state.color = o.color; tasks.dressed = true; CD.sound("pop"); drawList();
+      } }, shirtSVG(o.color), o.label);
+      return b;
+    }));
+    const scene = el("div.scene.bedroom.dark", null,
+      el("h2", null, "Rise and shine! 🌅"),
+      el("p", null, `Today you are a ${career.title}! First, get ready for work.`),
+      el("div.room-row", null, win, alarm, list),
+      el("h3", null, cfg.wardrobeTitle || "Pick your work clothes:"),
+      wardrobe, nextBtn, el("div.blanket"));
+    drawList();
+    CD.show(scene);
+  });
+
+  /* ---------- Breakfast ---------- */
+  CD.registerScene("breakfast", function (cfg, career, done) {
+    const foods = cfg.foods || ["🥞", "🍳", "🥣", "🍓", "🍌", "🧇", "🥛", "🍊"];
+    let onPlate = 0, eaten = 0;
+    const plate = el("div.plate", { id: "plate" });
+    const msg = el("p", null, "Tap foods to put them on your plate. Then tap your plate food to eat it!");
+    const nextBtn = el("button.btn.green", { id: "nextBtn", disabled: true, onclick: done }, cfg.nextLabel || "Drive to work 🚗");
+    const update = () => {
+      pantry.querySelectorAll("button").forEach((b) => (b.disabled = onPlate >= 4 || b.dataset.used));
+      if (eaten >= 2 && onPlate === 0) {
+        msg.textContent = "Yum! Your tummy is full and you have lots of energy! 💪";
+        nextBtn.disabled = false; nextBtn.classList.add("pulse");
+      } else if (eaten >= 1 && onPlate === 0) msg.textContent = "Still hungry? Pick one more food!";
+    };
+    const pantry = el("div.pantry", { id: "pantry" }, foods.map((f) => {
+      const b = el("button", { "data-food": f, onclick: () => {
+        if (onPlate >= 4) return;
+        b.dataset.used = 1; onPlate++; CD.sound("pop");
+        const item = el("button.food", { onclick: () => {
+          if (item.classList.contains("eaten")) return;
+          item.classList.add("eaten"); CD.sound("munch"); onPlate--; eaten++;
+          setTimeout(() => item.remove(), 300); update();
+        } }, f);
+        plate.appendChild(item); update();
+      } }, f);
+      return b;
+    }));
+    CD.show(el("div.scene.kitchen", null,
+      el("h2", null, "Breakfast time! 🍽️"),
+      msg, el("div.table", null, plate, pantry), nextBtn));
+  });
+
+  /* ---------- Driving to work (canvas, first-person) ---------- */
+  CD.registerScene("drive", function (cfg, career, done) {
+    const canvas = el("canvas");
+    const msgBox = el("div.drive-msg", null, "Tap ◀ ▶ to steer. Grab the treats 🦴, miss the cones 🚧!");
+    const left = el("button.btn.orange", { id: "leftBtn", "aria-label": "Steer left" }, "◀");
+    const right = el("button.btn.orange", { id: "rightBtn", "aria-label": "Steer right" }, "▶");
+    const scene = el("div.scene.drive-scene", null, canvas, msgBox, el("div.drive-ui", null, left, right));
+    CD.show(scene);
+    const ctx = canvas.getContext("2d");
+    let W, H, dpr;
+    const resize = () => { dpr = Math.min(2, devicePixelRatio || 1); W = scene.clientWidth; H = scene.clientHeight;
+      canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); };
+    resize(); addEventListener("resize", resize);
+
+    const DURATION = (cfg.seconds || 24) / CD.speed;
+    let lane = 0, camX = 0, t = 0, traveled = 0, speed = 9, targetSpeed = 9, last = performance.now();
+    let objs = [], spawnT = 0, sceneryT = 0, treats = 0, wheel = 0, running = true, arrived = false;
+    let duck = { state: "none", x: -3 }; // none -> coming -> waiting -> crossing -> gone
+    const steer = (d) => { if (duck.state === "waiting" || arrived) return; lane = Math.max(-1, Math.min(1, lane + d)); CD.sound("click"); };
+    left.onclick = () => steer(-1); right.onclick = () => steer(1);
+    canvas.addEventListener("pointerdown", (e) => steer(e.clientX < W / 2 ? -1 : 1));
+    const key = (e) => { if (e.key === "ArrowLeft") steer(-1); if (e.key === "ArrowRight") steer(1); };
+    addEventListener("keydown", key);
+    let stopBtn = null;
+    CD.onLeave(() => { running = false; removeEventListener("resize", resize); removeEventListener("keydown", key); });
+
+    function spawn(kind, ln, w = 32) { objs.push({ kind, lane: ln, w }); }
+    function proj(lanePos, w) {
+      const hy = H * 0.42, by = H * 0.86, roadHalf = W < 700 ? W * 0.62 : W * 0.75;
+      const s = 1 / w;
+      return { x: W / 2 + (lanePos - camX) * (roadHalf * 2 / 3) * s, y: hy + (by - hy) * s, s, roadHalf };
+    }
+    function drawRoad() {
+      const hy = H * 0.42;
+      const sky = ctx.createLinearGradient(0, 0, 0, hy); sky.addColorStop(0, "#6ec6ff"); sky.addColorStop(1, "#c9eeff");
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, W, hy);
+      ctx.font = `${H * 0.09}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("☁️", W * 0.2 - (traveled * 0.5) % (W * 1.4) + W * 0.6, H * 0.12);
+      ctx.fillText("☁️", W * 0.85 - (traveled * 0.3) % (W * 1.4) + W * 0.3, H * 0.2);
+      ctx.fillText("🌞", W * 0.88, W < 700 ? H * 0.2 : H * 0.09);
+      ctx.fillStyle = "#7cd35c"; ctx.fillRect(0, hy, W, H - hy);
+      // hills
+      ctx.fillStyle = "#5fbf45"; ctx.beginPath(); ctx.ellipse(W * 0.2, hy, W * 0.3, H * 0.06, 0, Math.PI, 0); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(W * 0.8, hy, W * 0.35, H * 0.08, 0, Math.PI, 0); ctx.fill();
+      // road (trapezoid between far w=40 and near w=0.85)
+      const a = proj(-1.6, 40), b = proj(1.6, 40), c = proj(1.6, 0.85), d = proj(-1.6, 0.85);
+      ctx.fillStyle = "#5d6470"; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.fill();
+      // edges
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 4;
+      [[-1.55], [1.55]].forEach(([l]) => { const p1 = proj(l, 40), p2 = proj(l, 0.85); ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke(); });
+      // dashed lane lines
+      ctx.fillStyle = "#ffd84a";
+      [-0.5, 0.5].forEach((l) => {
+        for (let k = 0; k < 14; k++) {
+          const w1 = 1 + k * 3 - (traveled % 3), w2 = w1 + 1.4;
+          if (w1 < 0.9) continue;
+          const p1 = proj(l - 0.03, w1), p2 = proj(l + 0.03, w1), p3 = proj(l + 0.03, w2), p4 = proj(l - 0.03, w2);
+          ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); ctx.fill();
+        }
+      });
+    }
+    const ICON = { treat: "🦴", cone: "🚧", tree: "🌳", house: "🏡", flower: "🌻", clinic: "🏥", duck: "🦆" };
+    function drawObjs() {
+      objs.sort((a, b) => b.w - a.w);
+      for (const o of objs) {
+        if (o.w < 0.9) continue;
+        const p = proj(o.lane, o.w);
+        const size = (o.kind === "tree" || o.kind === "house" ? 260 : o.kind === "clinic" ? 520 : 150) * p.s * (H / 700);
+        ctx.font = `${size}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+        ctx.fillText(ICON[o.kind], p.x, p.y);
+        if (o.kind === "clinic") {
+          ctx.font = `bold ${Math.max(12, 60 * p.s * (H / 700))}px sans-serif`; ctx.fillStyle = "#fff";
+          const label = cfg.destination || "Clinic"; const tw = ctx.measureText(label).width;
+          ctx.fillStyle = "#7c5cff"; ctx.fillRect(p.x - tw / 2 - 8, p.y - size - 50 * p.s * (H / 700) - 6, tw + 16, 60 * p.s * (H / 700) + 8);
+          ctx.fillStyle = "#fff"; ctx.textBaseline = "top"; ctx.fillText(label, p.x, p.y - size - 50 * p.s * (H / 700) - 2);
+          ctx.fillStyle = "#000";
+        }
+      }
+      if (duck.state === "waiting" || duck.state === "crossing" || duck.state === "coming") {
+        const p = proj(duck.x, duck.w);
+        ctx.font = `${120 * p.s * (H / 700)}px serif`; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+        for (let i = 0; i < 4; i++) ctx.fillText(i ? "🐥" : "🦆", proj(duck.x - i * 0.35, duck.w).x, p.y - Math.abs(Math.sin(t * 8 + i)) * 6);
+      }
+    }
+    function drawDash() {
+      const top = H * 0.84;
+      ctx.fillStyle = CD.state.color || "#7c5cff";
+      ctx.beginPath(); ctx.moveTo(0, top + 20); ctx.quadraticCurveTo(W / 2, top - 30, W, top + 20); ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.fill();
+      ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.fillRect(0, top + 40, W, H);
+      // steering wheel
+      const r = Math.min(W, H) * 0.17, cx = W / 2, cy = H + r * 0.25;
+      wheel += ((lane - camX) * 0.9 - wheel) * 0.2;
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(wheel);
+      ctx.strokeStyle = "#2d2a4a"; ctx.lineWidth = r * 0.18; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = r * 0.12; ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.moveTo(0, 0); ctx.lineTo(0, r); ctx.stroke();
+      ctx.fillStyle = "#ffcf3d"; ctx.beginPath(); ctx.arc(0, 0, r * 0.22, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      // progress bar
+      const bw = Math.min(W - 230, 420), bx = W / 2 - bw / 2 - 30, byy = 72;
+      ctx.fillStyle = "rgba(255,255,255,.9)"; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx - 34, byy - 4, bw + 130, 36, 18) : ctx.rect(bx - 34, byy - 4, bw + 130, 36); ctx.fill();
+      ctx.fillStyle = "#ddd"; ctx.fillRect(bx, byy + 11, bw, 6);
+      ctx.font = "24px serif"; ctx.textBaseline = "middle"; ctx.textAlign = "center";
+      ctx.fillText("🏠", bx - 16, byy + 14); ctx.fillText("🏥", bx + bw + 16, byy + 14);
+      ctx.fillText("🚙", bx + bw * Math.min(1, t / DURATION), byy + 12);
+      ctx.font = "bold 20px sans-serif"; ctx.textAlign = "left"; ctx.fillStyle = "#2d2a4a";
+      ctx.fillText("🦴 " + treats, bx + bw + 40, byy + 14);
+    }
+    function showMsg(s) { msgBox.textContent = s; msgBox.hidden = false; }
+
+    function tick(now) {
+      if (!running) return;
+      const dt = Math.min(0.05, (now - last) / 1000) * CD.speed; last = now;
+      if (!arrived && duck.state !== "waiting") t += dt / CD.speed;
+      speed += (targetSpeed - speed) * Math.min(1, dt * 2);
+      const move = speed * dt; traveled += move;
+      camX += (lane - camX) * Math.min(1, dt * 8);
+      objs.forEach((o) => (o.w -= move));
+      // spawn
+      const progress = t / DURATION;
+      if (!arrived && duck.state !== "coming" && duck.state !== "waiting") {
+        spawnT -= dt;
+        if (spawnT <= 0 && progress < 0.92) {
+          spawnT = 1.1;
+          const ln = Math.floor(Math.random() * 3) - 1;
+          spawn(Math.random() < 0.62 ? "treat" : "cone", ln);
+          if (Math.random() < 0.3) spawn("treat", ((ln + 2) % 3) - 1, 36);
+        }
+      }
+      sceneryT -= dt;
+      if (sceneryT <= 0 && !arrived) { sceneryT = 0.45; const side = Math.random() < 0.5 ? -1 : 1;
+        spawn(["tree", "tree", "house", "flower"][Math.floor(Math.random() * 4)], side * (2.3 + Math.random() * 1.6), 40); }
+      // collisions
+      for (const o of objs) {
+        if (!o.hit && o.w < 1.25 && o.w > 0.9 && Math.abs(o.lane - camX) < 0.5) {
+          if (o.kind === "treat") { o.hit = true; o.w = 0; treats++; CD.sound("star"); }
+          if (o.kind === "cone") { o.hit = true; o.w = 0; speed = 3; CD.sound("bonk"); showMsg("Bonk! Oops! Watch out for cones 🚧"); setTimeout(() => { if (!arrived && (duck.state === "gone" || duck.state === "none")) msgBox.hidden = true; }, 1500); }
+        }
+      }
+      objs = objs.filter((o) => o.w > 0.85);
+      // duck crossing event
+      if (duck.state === "none" && progress > 0.45) {
+        duck.state = "coming"; duck.w = 14; duck.x = -2.4; objs = objs.filter((o) => o.kind !== "cone" && o.kind !== "treat");
+        showMsg("Uh oh! Ducks crossing the road! Tap STOP! 🛑"); CD.sound("quack");
+        stopBtn = el("button.btn.stop-btn", { id: "stopBtn", onclick: () => {
+          if (duck.state !== "waiting" && duck.state !== "coming") return;
+          stopBtn.remove(); if (duck.state === "coming") duck.w = Math.max(4, duck.w); duck.state = "crossing"; targetSpeed = 0; showMsg("Good job waiting! The ducks say thank you! 🦆"); CD.sound("quack");
+        } }, "STOP");
+        scene.appendChild(stopBtn);
+      }
+      if (duck.state === "coming") { duck.w -= move; targetSpeed = 3; if (duck.w <= 4) { duck.state = "waiting"; targetSpeed = 0; speed = 0; } }
+      if (duck.state === "crossing") { duck.x += dt * 1.1; if (duck.x > 3.2) { duck.state = "gone"; msgBox.hidden = true; } }
+      if (duck.state === "gone" && !arrived) targetSpeed = 9;
+      if (duck.state === "waiting" || duck.state === "crossing") { speed = 0; targetSpeed = 0; }
+      // arrive
+      if (!arrived && t >= DURATION) {
+        arrived = true; spawn("clinic", 0, 12); lane = 0; targetSpeed = 6;
+      }
+      if (arrived) {
+        const c = objs.find((o) => o.kind === "clinic");
+        if (c && c.w <= 2.2) { c.w = 2.2; targetSpeed = 0; speed = 0;
+          if (!scene.querySelector("#arriveBtn")) {
+            showMsg(`You made it to ${cfg.destination || "work"}! You picked up ${treats} treat${treats === 1 ? "" : "s"} for the pets 🦴`);
+            CD.state.treats = treats; CD.sound("honk");
+            const b = el("button.btn.green.pulse", { id: "arriveBtn", style: { position: "absolute", left: "50%", top: "55%", transform: "translate(-50%,-50%)" }, onclick: done }, "Go inside 🚪");
+            scene.appendChild(b);
+          }
+        }
+      }
+      ctx.clearRect(0, 0, W, H);
+      drawRoad(); drawObjs(); drawDash();
+      requestAnimationFrame(tick);
+    }
+    setTimeout(() => (msgBox.hidden = true), 4000 / CD.speed);
+    requestAnimationFrame(tick);
+  });
+
+  /* ---------- Clinic day: appointment book + one visit per patient ---------- */
+  CD.registerScene("clinic", function (cfg, career, done) {
+    const patients = cfg.patients;
+    let idx = 0;
+
+    function book() {
+      const all = idx >= patients.length;
+      const rows = patients.map((p, i) => el("div.appt" + (i < idx ? ".done" : "") + (i === idx ? ".next" : ""), null,
+        el("span.time", null, p.time), el("span.pet", null, p.emoji),
+        el("span.who", null, el("b", null, p.name), ` the ${p.animal}`, el("br"), el("small", null, `${p.owner.name}: ${p.reasonShort}`)),
+        el("span.stamp", null, i < idx ? "✅" : "")));
+      const next = patients[idx];
+      CD.show(el("div.scene.book-scene", null,
+        el("h2", null, idx === 0 ? "📒 Your Appointment Book" : all ? "📒 All done for today!" : "📒 Who's next?"),
+        el("div.book", null,
+          el("div.page", null, el("h3", null, `${cfg.clinicName}`), el("p", null, `Today's patients for Dr. ${CD.drName()}`), rows.slice(0, 3)),
+          el("div.page", null, rows.slice(3),
+            el("p", { style: { marginTop: "18px" } }, all ? "You helped every pet today! 🎉" : `${cfg.helper.emoji} ${cfg.helper.name}: "${next.name} the ${next.animal} is waiting for you!"`))),
+        all ? el("button.btn.pink.pulse", { id: "nextBtn", onclick: done }, "Finish the day 🌙")
+            : el("button.btn.green.pulse", { id: "nextBtn", onclick: () => meet(next) }, `See ${next.name} ${next.emoji}`)
+      ));
+    }
+
+    function steps(on) {
+      const names = ["👋 Meet", "🩺 Check", "🤔 Diagnose", "💊 Treat"];
+      return el("div.steps", null, names.map((n, i) => el("span", { class: i < on ? "done" : i === on ? "on" : "" }, n)));
+    }
+
+    function meet(p) {
+      CD.show(el("div.scene.exam-scene", null, steps(0),
+        el("h2", null, `Meet ${p.name} the ${p.animal}`),
+        el("div.meet", null, el("div.char", null, p.owner.emoji), el("div.pet-big", null, p.emoji)),
+        CD.bubble(p.owner.name, p.problem),
+        el("button.btn.green.pulse", { id: "nextBtn", onclick: () => exam(p) }, "Let's take a look! 🩺")));
+    }
+
+    function exam(p) {
+      const visit = { p, diagFirst: true, treatFirst: true };
+      const doneTools = new Set();
+      const paper = el("div.paper", null, el("b", null, `📋 ${p.name}'s Clues`));
+      const diagBtn = el("button.btn.pink", { id: "nextBtn", disabled: true, onclick: () => diagnose(visit) }, "What's wrong? 🤔");
+      const toolBtns = cfg.tools.map((tool) => {
+        const b = el("button.tool", { "data-tool": tool.id, onclick: () => openTool(tool, p, (clue, warn) => {
+          if (!doneTools.has(tool.id)) { doneTools.add(tool.id); b.classList.add("done"); b.querySelector(".tick").textContent = " ✅";
+            paper.appendChild(el("div.clue" + (warn ? ".warn" : ""), null, clue)); }
+          if (doneTools.size === cfg.tools.length) { diagBtn.disabled = false; diagBtn.classList.add("pulse"); }
+        }) }, el("span.ti", null, tool.icon), tool.label, el("span.tick"));
+        return b;
+      });
+      CD.show(el("div.scene.exam-scene", null, steps(1),
+        el("h2", null, `Check-up time for ${p.name}!`),
+        el("p", null, "Use each tool to find clues."),
+        el("div.exam-area", null,
+          el("div.exam-table", null, el("div.pet-big", null, p.emoji), el("div.table-top"), el("div.tools", null, toolBtns)),
+          el("div.clipboard", null, paper)),
+        diagBtn));
+    }
+
+    function openTool(tool, p, record) {
+      const v = p.vitals[tool.id];
+      const body = el("div");
+      const finish = (readingText) => {
+        CD.sound(v.warn ? "hmm" : "beep");
+        body.appendChild(el("div.reading", null, readingText));
+        body.appendChild(el("p", null, (v.warn ? "⚠️ " : "✅ ") + v.note));
+        body.appendChild(el("button.btn.green", { id: "writeBtn", onclick: () => { ov.remove(); record(`${tool.icon} ${tool.short}: ${v.value} ${v.warn ? "⚠️" : "✅"}`, v.warn); } }, "Write it down ✏️"));
+      };
+      const panel = el("div.panel", null, el("h3", null, `${tool.icon} ${tool.label}`), body);
+      const ov = el("div.overlay", null, panel);
+      document.body.appendChild(ov);
+
+      if (tool.kind === "thermo") {
+        const fill = el("div.fill"); const th = el("div.thermo", null, fill);
+        const go = el("button.btn", { id: "actBtn", onclick: () => {
+          go.remove(); CD.sound("click"); fill.style.height = Math.min(95, v.level || 60) + "%";
+          setTimeout(() => finish(`Temperature: ${v.value}`), 1700 / CD.speed);
+        } }, "Tap to check 🌡️");
+        body.append(el("p", null, `Gently take ${p.name}'s temperature.`), th, go);
+      } else if (tool.kind === "heart") {
+        let taps = 0; const need = 4;
+        const count = el("p", null, `Tap the heart ${need} times to listen!`);
+        const heart = el("button.heart-btn", { id: "actBtn", onclick: () => {
+          if (taps >= need) return; taps++; CD.sound("thump"); CD.floaty("💗", heart);
+          count.textContent = taps < need ? `Thump-thump! ${need - taps} more...` : "Thump-thump! All done listening.";
+          if (taps === need) { heart.style.animation = "none"; finish(`Heartbeat: ${v.value}`); }
+        } }, "❤️");
+        heart.style.animationDuration = (v.fast ? 0.45 : 0.9) + "s";
+        body.append(count, heart);
+      } else if (tool.kind === "scale") {
+        const pet = el("div.scale-pet", null, p.emoji); const read = el("div.scale-read", null, "0");
+        const go = el("button.btn", { id: "actBtn", onclick: () => {
+          go.remove(); pet.style.transform = "translateY(10px)"; CD.sound("pop");
+          const target = v.number; let n = 0; const steps = 20;
+          const iv = setInterval(() => { n++; read.textContent = Math.round((target * n) / steps) + " " + v.unit;
+            if (n >= steps) { clearInterval(iv); finish(`Weight: ${v.value}`); } }, 60 / CD.speed);
+        } }, `Hop on, ${p.name}! ⚖️`);
+        body.append(el("div.scale-wrap", null, pet, el("div.scale-plate"), read), go);
+      } else if (tool.kind === "look") {
+        const mag = el("div.magnify", null, p.emoji);
+        const go = el("button.btn", { id: "actBtn", onclick: () => {
+          go.remove(); mag.appendChild(el("span.zoom", null, v.icon || "🔍")); CD.sound("pop");
+          setTimeout(() => finish(v.value), 600 / CD.speed);
+        } }, "Look closely 🔍");
+        body.append(el("p", null, `Look all over ${p.name}. Do you see anything?`), mag, go);
+      }
+    }
+
+    function choiceScreen(visit, stepNo, title, opts, hintText, onRight) {
+      const p = visit.p;
+      const hintBox = el("div");
+      const grid = el("div.choices", null, shuffle(opts).map((o) => {
+        const b = el("button.choice", { "data-correct": o.correct ? "yes" : "no", onclick: () => {
+          if (grid.dataset.solved || b.classList.contains("wrong")) return;
+          if (o.correct) {
+            grid.dataset.solved = 1; b.classList.add("right"); CD.sound("yay"); onRight(b);
+          } else {
+            b.classList.add("wrong"); CD.sound("hmm");
+            if (stepNo === 2) visit.diagFirst = false; else visit.treatFirst = false;
+            hintBox.innerHTML = ""; hintBox.appendChild(el("div.hint", null, `${cfg.helper.emoji} ${cfg.helper.name}: "${o.why || "Hmm, not quite!"} ${hintText}"`, CD.readBtn(`${o.why || ""} ${hintText}`)));
+          }
+        } }, el("span.ce", null, o.icon), o.text);
+        return b;
+      }));
+      const clueLine = el("p", null, "Your clues: " + cfg.tools.map((t) => `${t.icon} ${p.vitals[t.id].short || p.vitals[t.id].value}`).join("  •  "));
+      const nextSlot = el("div");
+      CD.show(el("div.scene.exam-scene", null, steps(stepNo),
+        el("div.row", null, el("div.pet-big", { style: { fontSize: "clamp(70px,12vw,110px)" } }, p.emoji)),
+        el("h2", null, title), clueLine, grid, hintBox, nextSlot));
+      return { nextSlot, hintBox };
+    }
+
+    function diagnose(visit) {
+      const p = visit.p;
+      const s = choiceScreen(visit, 2, `What's wrong with ${p.name}?`, p.diagnosis.options, p.diagnosis.hint, (b) => {
+        if (visit.diagFirst) CD.addStars(1, b);
+        s.hintBox.innerHTML = "";
+        s.hintBox.appendChild(el("div.hint", null, `${cfg.helper.emoji} ${cfg.helper.name}: "${p.diagnosis.praise}"`));
+        s.nextSlot.appendChild(el("button.btn.green.pulse", { id: "nextBtn", onclick: () => treat(visit) }, `Help ${p.name} feel better 💊`));
+      });
+    }
+
+    function treat(visit) {
+      const p = visit.p;
+      const s = choiceScreen(visit, 3, `How will you help ${p.name}?`, p.treatment.options, p.treatment.hint, (b) => {
+        if (visit.treatFirst) CD.addStars(1, b);
+        setTimeout(() => happy(visit), 900 / CD.speed);
+      });
+    }
+
+    function happy(visit) {
+      const p = visit.p;
+      CD.addStars(1);
+      const earned = 1 + (visit.diagFirst ? 1 : 0) + (visit.treatFirst ? 1 : 0);
+      CD.state.results.push({ name: p.name, emoji: p.emoji, animal: p.animal, stars: earned });
+      idx++;
+      const pet = el("div.pet-big.happy", null, p.emoji);
+      CD.show(el("div.scene.exam-scene", null, steps(4),
+        el("h2", null, `${p.name} feels better! 🎉`),
+        el("div.stars-big", null, "⭐".repeat(earned) + "☆".repeat(3 - earned)),
+        el("div.meet", null, el("div.char", null, p.owner.emoji), pet),
+        CD.bubble(p.owner.name, p.thanks.replace("{dr}", "Dr. " + CD.drName())),
+        el("div.fact", null, "🧠 Fun fact: " + p.fact, CD.readBtn("Fun fact: " + p.fact)),
+        el("button.btn.green.pulse", { id: "nextBtn", onclick: book }, idx < patients.length ? "Back to my appointment book 📒" : "See my appointment book 📒")));
+      CD.confetti();
+      const hearts = setInterval(() => CD.floaty(["💖", "💕", "✨"][Math.floor(Math.random() * 3)], pet), 300);
+      setTimeout(() => clearInterval(hearts), 2400);
+      CD.onLeave(() => clearInterval(hearts));
+    }
+
+    book();
+  });
+
+  /* ---------- End of day summary ---------- */
+  CD.registerScene("summary", function (cfg, career) {
+    const r = CD.state.results, max = r.length * 3, s = CD.state.stars;
+    CD.confetti(90); CD.sound("yay");
+    const title = s >= max - 1 ? cfg.titles[0] : s >= max * 0.6 ? cfg.titles[1] : cfg.titles[2];
+    CD.show(el("div.scene.summary-scene", null,
+      el("h2", null, `What a day, Dr. ${CD.drName()}!`),
+      el("div.badge", null, cfg.badge),
+      el("h3", null, `You are a ${title}!`),
+      el("div.stars-big", { id: "finalStars" }, `⭐ ${s} out of ${max} stars`),
+      el("p", null, `You helped ${r.length} ${cfg.helpedWord || "pets"} today${CD.state.treats ? ` and collected ${CD.state.treats} treat${CD.state.treats === 1 ? "" : "s"} on the drive 🦴` : ""}.`),
+      el("div.helped", null, r.map((x) => el("div", null, el("span.e", null, x.emoji), x.name, el("br"), "⭐".repeat(x.stars)))),
+      el("p", null, cfg.goodnight || "Time to go home and rest. 🌙"),
+      el("div.row", null,
+        el("button.btn.green", { id: "againBtn", onclick: () => CD.startCareer(career.id) }, "Play again 🔁"),
+        el("button.btn.pink", { id: "pickBtn", onclick: () => CD.sceneTypes.picker() }, "Pick another job 🎯"))));
+  });
+})();
+</script>
+<script>
+/* Career: Veterinarian. To make a new career, copy this file, change the data, and add a <script> tag in index.html. */
+CD.registerCareer({
+  id: "vet",
+  title: "Veterinarian",
+  emoji: "🐶",
+  color: "#2fbf71",
+  playable: true,
+  scenes: [
+    { type: "wakeUp", dressText: "Put on your vet scrubs",
+      wardrobeTitle: "Pick your vet scrubs color:",
+      outfits: [ { label: "Pink", color: "#ff7eb6" }, { label: "Blue", color: "#4fa8ff" },
+                 { label: "Green", color: "#3fcf8e" }, { label: "Purple", color: "#9b7bff" } ] },
+    { type: "breakfast", nextLabel: "Drive to the vet clinic 🚗" },
+    { type: "drive", destination: "Happy Paws Vet Clinic", seconds: 24 },
+    { type: "clinic",
+      clinicName: "🐾 Happy Paws Vet Clinic",
+      helper: { name: "Nurse Nina", emoji: "👩‍⚕️" },
+      tools: [
+        { id: "temp", kind: "thermo", icon: "🌡️", label: "Temperature", short: "Temp" },
+        { id: "heart", kind: "heart", icon: "🩺", label: "Heartbeat", short: "Heart" },
+        { id: "weight", kind: "scale", icon: "⚖️", label: "Weight", short: "Weight" },
+        { id: "look", kind: "look", icon: "🔍", label: "Look closely", short: "Look" },
+      ],
+      patients: [
+        { name: "Biscuit", animal: "dog", emoji: "🐶", time: "9:00",
+          owner: { name: "Mr. Lee", emoji: "👨" },
+          reasonShort: "itchy ear",
+          problem: "Hi Doc! Biscuit keeps shaking his head and scratching his ear. He even whines when I touch it. Can you help him?",
+          vitals: {
+            temp: { value: "102°F", note: "That's normal for a dog. Dogs are warmer than people!", level: 55 },
+            heart: { value: "90 beats a minute", short: "90 beats", note: "A nice, healthy dog heartbeat." },
+            weight: { value: "30 pounds", number: 30, unit: "lb", note: "A good, healthy weight for Biscuit." },
+            look: { value: "His right ear is red, itchy, and a little goopy!", short: "red, goopy ear", icon: "👂", note: "That's a big clue!", warn: true },
+          },
+          diagnosis: {
+            hint: "Look at your clues. Which part of Biscuit looked red?",
+            praise: "Great thinking! The red, goopy ear means an ear infection.",
+            options: [
+              { icon: "👂", text: "Ear infection", correct: true },
+              { icon: "🦴", text: "Broken leg", why: "Biscuit is walking just fine." },
+              { icon: "😮", text: "Hiccups", why: "Hiccups don't make ears itchy." },
+            ] },
+          treatment: {
+            hint: "What could go right into a sore ear?",
+            options: [
+              { icon: "💧", text: "Clean the ear and give ear drops", correct: true },
+              { icon: "🩹", text: "Put a cast on his leg", why: "His legs are okay!" },
+              { icon: "🍦", text: "Give him ice cream", why: "Yummy, but ice cream isn't good for dogs." },
+            ] },
+          thanks: "Thank you, {dr}! Look at Biscuit wag his tail!",
+          fact: "Dogs can hear sounds that are much too quiet for people to hear." },
+
+        { name: "Luna", animal: "cat", emoji: "🐱", time: "10:00",
+          owner: { name: "Ms. Patel", emoji: "👩" },
+          reasonShort: "sneezy and sleepy",
+          problem: "Hello! Luna has been sneezing all morning. She is very sleepy and won't eat her breakfast.",
+          vitals: {
+            temp: { value: "104°F", short: "104°F hot", note: "That's too hot! Normal for a cat is about 101°F. Luna has a fever.", warn: true, level: 85 },
+            heart: { value: "180 beats a minute", short: "180 beats", note: "Cats have fast little hearts. This is normal!" },
+            weight: { value: "9 pounds", number: 9, unit: "lb", note: "A healthy cat weight." },
+            look: { value: "Her eyes are watery and her nose is runny. Achoo!", short: "runny nose", icon: "🤧", note: "That's a big clue!", warn: true },
+          },
+          diagnosis: {
+            hint: "She has a fever, she's sneezing, and her nose is runny. What does that sound like?",
+            praise: "Yes! A fever, sneezes, and a runny nose mean Luna has a cat cold.",
+            options: [
+              { icon: "🤧", text: "A cat cold", correct: true },
+              { icon: "☀️", text: "Sunburn", why: "Luna stays inside, so it isn't sunburn." },
+              { icon: "🏃", text: "Too much running", why: "Running wouldn't make her sneeze." },
+            ] },
+          treatment: {
+            hint: "When you have a cold, what helps you get better?",
+            options: [
+              { icon: "💊", text: "Cold medicine, water, and lots of rest", correct: true },
+              { icon: "🛁", text: "A big bubble bath", why: "Most cats really don't like baths!" },
+              { icon: "🧶", text: "Play with yarn all night", why: "Luna needs rest to get better." },
+            ] },
+          thanks: "Thank you, {dr}! Luna is purring already!",
+          fact: "Cats sleep for about 15 hours a day. That's a lot of naps!" },
+
+        { name: "Kiwi", animal: "parrot", emoji: "🦜", time: "11:00",
+          owner: { name: "Grandpa Joe", emoji: "👴" },
+          reasonShort: "can't crack seeds",
+          problem: "Good morning! Kiwi can't crack open her seeds anymore. She tries and tries, but her beak keeps slipping.",
+          vitals: {
+            temp: { value: "105°F", note: "Birds are very warm! This is normal for a parrot.", level: 80 },
+            heart: { value: "250 beats a minute", short: "250 beats", note: "Wow, fast! But that's normal for a small bird.", fast: true },
+            weight: { value: "1 pound", number: 1, unit: "lb", note: "A healthy weight for Kiwi." },
+            look: { value: "Her beak has grown much too long, and the tip is curly!", short: "long beak", icon: "👃", note: "That's a big clue!", warn: true },
+          },
+          diagnosis: {
+            hint: "What did you see when you looked closely at her beak?",
+            praise: "That's right! Kiwi's beak grew too long, so she can't crack her seeds.",
+            options: [
+              { icon: "🦜", text: "Beak grew too long", correct: true },
+              { icon: "👂", text: "Ear infection", why: "Kiwi's ears look fine." },
+              { icon: "🥶", text: "She is too cold", why: "Her temperature was normal." },
+            ] },
+          treatment: {
+            hint: "How could you make a too-long beak shorter, very gently?",
+            options: [
+              { icon: "💅", text: "Gently trim and smooth her beak", correct: true },
+              { icon: "🎨", text: "Paint her beak", why: "Paint won't make it shorter." },
+              { icon: "🧢", text: "Give her a tiny hat", why: "Cute, but it won't fix her beak!" },
+            ] },
+          thanks: "Thank you, {dr}! Kiwi says: SQUAWK! Thank you!",
+          fact: "Some parrots can learn to say lots of words, and many can live longer than 50 years!" },
+
+        { name: "Daisy", animal: "horse", emoji: "🐴", time: "1:00",
+          owner: { name: "Farmer Rosa", emoji: "👩‍🌾" },
+          reasonShort: "limping",
+          problem: "Howdy, Doc! Daisy started limping on her front leg after our ride today. She doesn't want to walk on it.",
+          vitals: {
+            temp: { value: "100°F", note: "That's normal for a horse.", level: 50 },
+            heart: { value: "36 beats a minute", short: "36 beats", note: "Horses have big, slow hearts. This is normal!" },
+            weight: { value: "1,000 pounds", number: 1000, unit: "lb", note: "Horses are BIG! This is a healthy weight." },
+            look: { value: "There's a little stone stuck in her front hoof!", short: "stone in hoof", icon: "🪨", note: "That's a big clue!", warn: true },
+          },
+          diagnosis: {
+            hint: "What did you find stuck in her hoof?",
+            praise: "Super! A stone stuck in her hoof is making Daisy limp.",
+            options: [
+              { icon: "🪨", text: "Stone stuck in her hoof", correct: true },
+              { icon: "🤢", text: "Tummy ache", why: "A tummy ache wouldn't make her limp." },
+              { icon: "🤧", text: "A cold", why: "Her temperature was normal and she isn't sneezing." },
+            ] },
+          treatment: {
+            hint: "What should you do with the stone?",
+            options: [
+              { icon: "🧹", text: "Take out the stone and clean her hoof", correct: true },
+              { icon: "👓", text: "Give her glasses", why: "Daisy can see fine!" },
+              { icon: "🎵", text: "Sing her a song", why: "Nice, but the stone would still be there." },
+            ] },
+          thanks: "Yee-haw! Thank you, {dr}! Daisy is trotting happily again!",
+          fact: "Horses can sleep standing up!" },
+
+        { name: "Peanut", animal: "pig", emoji: "🐷", time: "2:00",
+          owner: { name: "Sam", emoji: "🧒" },
+          reasonShort: "red, peely skin",
+          problem: "Hi! Peanut played outside in the sun all day yesterday. Now his back is red and peely, and he says OINK when I pet him.",
+          vitals: {
+            temp: { value: "102°F", note: "That's normal for a pig.", level: 55 },
+            heart: { value: "80 beats a minute", short: "80 beats", note: "A healthy pig heartbeat." },
+            weight: { value: "60 pounds", number: 60, unit: "lb", note: "A healthy weight for a young pig." },
+            look: { value: "His back is pink, red, and peeling, just like a sunburn!", short: "red, peely back", icon: "☀️", note: "That's a big clue!", warn: true },
+          },
+          diagnosis: {
+            hint: "Peanut was in the sun ALL day. What can too much sun do to skin?",
+            praise: "You got it! Peanut has a sunburn.",
+            options: [
+              { icon: "☀️", text: "Sunburn", correct: true },
+              { icon: "🦷", text: "Broken tooth", why: "His teeth look fine." },
+              { icon: "🤧", text: "A cold", why: "He isn't sneezing and has no fever." },
+            ] },
+          treatment: {
+            hint: "Sunburned skin needs something cool and some shade.",
+            options: [
+              { icon: "🧴", text: "Cool aloe lotion, shade, and a mud bath", correct: true },
+              { icon: "🔥", text: "Sit by a warm heat lamp", why: "Heat would make the burn feel worse." },
+              { icon: "🏖️", text: "More time in the sun", why: "More sun would make it worse!" },
+            ] },
+          thanks: "Thank you, {dr}! Peanut is happy in the cool mud!",
+          fact: "Pigs roll in mud to stay cool. The mud works like sunscreen!" },
+      ] },
+    { type: "summary", badge: "🏅", helpedWord: "pets",
+      titles: ["Super Vet", "Great Vet", "Kind Vet"],
+      goodnight: "All the animals are happy and healthy. Time to drive home and rest! 🌙" },
+  ],
+});
+</script>
+<script>
+/* Careers that are on the way. Set playable: true and add scenes when one is built. */
+[
+  { id: "doctor", title: "Doctor", emoji: "🩺", color: "#3db8ff" },
+  { id: "firefighter", title: "Firefighter", emoji: "🚒", color: "#e53935" },
+  { id: "architect", title: "Architect", emoji: "🏗️", color: "#ff8a3d" },
+  { id: "business", title: "Business Person", emoji: "💼", color: "#7c5cff" },
+].forEach((c) => CD.registerCareer({ ...c, playable: false, scenes: [] }));
+</script>
+<script>
+/* Start the game on the title screen. */
+document.addEventListener("DOMContentLoaded", () => CD.home());
+</script>
+</body>
+</html>
